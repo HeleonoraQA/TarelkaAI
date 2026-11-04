@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Тушёная картошка с курицей">
+  <rect width="640" height="360" fill="#E6D8C6"/>
+  <ellipse cx="320" cy="300" rx="190" ry="24" fill="#CFBDAA"/>
+  <path d="M170 170h300v54a96 96 0 0 1-96 96H266a96 96 0 0 1-96-96z" fill="#4A3B2C"/>
+  <ellipse cx="320" cy="170" rx="150" ry="38" fill="#5A3526"/>
+  <ellipse cx="320" cy="170" rx="128" ry="30" fill="#8A4E10"/>
+  <g fill="#E6D8C6">
+    <circle cx="276" cy="166" r="17"/><circle cx="336" cy="158" r="15"/><circle cx="372" cy="176" r="14"/>
+    <circle cx="300" cy="186" r="12"/><circle cx="240" cy="182" r="10"/>
+  </g>
+  <g fill="#B8432E">
+    <path d="M310 148c14-10 32-6 38 8 6 14-4 28-18 30-16 2-28-8-28-20 0-6 3-13 8-18z"/>
+    <path d="M358 188c10-8 24-6 28 4 4 10-2 20-14 22-12 2-22-6-22-14 0-4 3-9 8-12z" opacity=".9"/>
+  </g>
+  <g fill="#557351">
+    <ellipse cx="252" cy="146" rx="18" ry="8" transform="rotate(-20 252 146)"/>
+    <ellipse cx="392" cy="196" rx="14" ry="6" transform="rotate(24 392 196)"/>
+  </g>
+  <path d="M188 148h264" stroke="#4A3B2C" stroke-width="12" stroke-linecap="round"/>
+</svg>

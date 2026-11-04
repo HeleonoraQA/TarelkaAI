@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Куриный суп с лапшой">
+  <rect width="640" height="360" fill="#F6E7C6"/>
+  <ellipse cx="320" cy="300" rx="190" ry="24" fill="#E6D8C6"/>
+  <path d="M176 168h288v66a84 84 0 0 1-84 84H260a84 84 0 0 1-84-84z" fill="#FFFDF9"/>
+  <path d="M186 178h268v52a76 76 0 0 1-76 76H262a76 76 0 0 1-76-76z" fill="#F1DED3"/>
+  <g fill="#B8432E"><circle cx="266" cy="216" r="15"/><circle cx="352" cy="232" r="11"/></g>
+  <g fill="#8A4E10"><circle cx="310" cy="204" r="8"/><circle cx="392" cy="206" r="6"/><circle cx="286" cy="246" r="5"/></g>
+  <g fill="none" stroke="#CFBDAA" stroke-width="7" stroke-linecap="round">
+    <path d="M300 196c10 12 10 26 0 38"/>
+    <path d="M330 190c12 14 12 32 0 46"/>
+    <path d="M360 198c8 10 8 22 0 32"/>
+  </g>
+  <g fill="#557351"><ellipse cx="400" cy="192" rx="14" ry="7" transform="rotate(-20 400 192)"/><ellipse cx="252" cy="188" rx="12" ry="6"/></g>
+  <path d="M176 156h288" stroke="#CFBDAA" stroke-width="10" stroke-linecap="round"/>
+</svg>

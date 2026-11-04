@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Кабачковое рагу с рисом">
+  <rect width="640" height="360" fill="#F3F6EE"/>
+  <ellipse cx="320" cy="304" rx="198" ry="22" fill="#DFE9DA"/>
+  <circle cx="320" cy="184" r="144" fill="#4A3B2C"/>
+  <circle cx="320" cy="184" r="126" fill="#5A3526"/>
+  <circle cx="320" cy="184" r="108" fill="#8A4E10" opacity=".35"/>
+  <g fill="#557351">
+    <rect x="252" y="146" width="54" height="42" rx="10" transform="rotate(-12 279 167)"/>
+    <rect x="318" y="134" width="58" height="44" rx="10" transform="rotate(8 347 156)"/>
+    <rect x="290" y="196" width="56" height="42" rx="10" transform="rotate(-6 318 217)"/>
+    <rect x="358" y="188" width="48" height="38" rx="9" transform="rotate(14 382 207)"/>
+  </g>
+  <g fill="#6E8A66">
+    <rect x="260" y="154" width="38" height="26" rx="8" transform="rotate(-12 279 167)"/>
+    <rect x="326" y="142" width="42" height="28" rx="8" transform="rotate(8 347 156)"/>
+    <rect x="298" y="204" width="40" height="26" rx="8" transform="rotate(-6 318 217)"/>
+  </g>
+  <g fill="#E07A5F">
+    <circle cx="390" cy="150" r="11"/><circle cx="236" cy="196" r="9"/><circle cx="408" cy="224" r="8"/><circle cx="268" cy="238" r="7"/>
+  </g>
+  <g fill="#FFFDF9">
+    <circle cx="246" cy="152" r="4"/><circle cx="300" cy="250" r="4"/><circle cx="374" cy="242" r="4"/>
+    <circle cx="414" cy="176" r="4"/><circle cx="340" cy="178" r="4"/><circle cx="286" cy="124" r="3"/>
+  </g>
+  <g fill="#557351">
+    <ellipse cx="398" cy="132" rx="15" ry="6" transform="rotate(-24 398 132)"/>
+    <ellipse cx="244" cy="260" rx="12" ry="5" transform="rotate(18 244 260)"/>
+  </g>
+  <path d="M462 184h54" stroke="#4A3B2C" stroke-width="16" stroke-linecap="round"/>
+</svg>

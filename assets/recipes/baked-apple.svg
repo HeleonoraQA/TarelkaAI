@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Запечённое яблоко с корицей">
+  <rect width="640" height="360" fill="#F4EBE0"/>
+  <ellipse cx="320" cy="300" rx="206" ry="24" fill="#E6D8C6"/>
+  <rect x="126" y="124" width="388" height="150" rx="28" fill="#CFBDAA"/>
+  <rect x="142" y="140" width="356" height="118" rx="20" fill="#F6E7C6"/>
+  <g fill="#B8432E">
+    <circle cx="260" cy="190" r="46"/>
+    <circle cx="380" cy="186" r="42"/>
+  </g>
+  <g fill="#F6D9D1">
+    <circle cx="260" cy="186" r="34"/>
+    <circle cx="380" cy="182" r="30"/>
+  </g>
+  <g fill="#8A4E10">
+    <ellipse cx="260" cy="186" rx="10" ry="16"/>
+    <ellipse cx="380" cy="182" rx="9" ry="14"/>
+  </g>
+  <g fill="#F6E7C6">
+    <circle cx="246" cy="170" r="4"/><circle cx="272" cy="166" r="3"/><circle cx="368" cy="170" r="3"/><circle cx="392" cy="176" r="4"/>
+  </g>
+  <g stroke="#8A4E10" stroke-width="6" stroke-linecap="round">
+    <path d="M310 148l24-20M324 162l26-20"/>
+  </g>
+  <g stroke="#E8A15E" stroke-width="4" fill="none" stroke-linecap="round">
+    <path d="M218 224c14-8 30-8 44 0"/>
+    <path d="M352 222c12-6 26-6 38 0"/>
+  </g>
+  <g stroke="#FFFDF9" stroke-width="5" fill="none" stroke-linecap="round" opacity=".8">
+    <path d="M280 96c8-12 8-22 0-32"/>
+    <path d="M360 92c8-12 8-22 0-32"/>
+  </g>
+</svg>

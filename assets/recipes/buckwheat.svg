@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Гречка с грибами и луком">
+  <rect width="640" height="360" fill="#EFE3D2"/>
+  <ellipse cx="320" cy="296" rx="190" ry="24" fill="#CFBDAA"/>
+  <circle cx="320" cy="190" r="130" fill="#FFFDF9"/>
+  <circle cx="320" cy="190" r="108" fill="#EFE3D2"/>
+  <g fill="#8A4E10">
+    <circle cx="276" cy="180" r="6"/><circle cx="300" cy="164" r="5"/><circle cx="326" cy="182" r="6"/>
+    <circle cx="352" cy="162" r="5"/><circle cx="290" cy="212" r="5"/><circle cx="330" cy="214" r="6"/>
+    <circle cx="360" cy="196" r="5"/><circle cx="248" cy="200" r="4"/><circle cx="380" cy="216" r="4"/>
+  </g>
+  <g>
+    <path d="M356 140a30 30 0 0 1 26 30 30 30 0 0 1-46 24 26 26 0 0 1 20-54z" fill="#8A4E10"/>
+    <ellipse cx="368" cy="170" rx="26" ry="12" fill="#4A3B2C"/>
+    <path d="M252 224a24 24 0 0 1 20-22 22 22 0 0 1 8 42 22 22 0 0 1-28-20z" fill="#8A4E10"/>
+    <ellipse cx="262" cy="214" rx="20" ry="9" fill="#4A3B2C"/>
+  </g>
+  <g fill="#557351">
+    <ellipse cx="302" cy="238" rx="18" ry="7" transform="rotate(-18 302 238)"/>
+    <ellipse cx="390" cy="190" rx="14" ry="6" transform="rotate(30 390 190)"/>
+  </g>
+</svg>

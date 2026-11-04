@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Овсяная каша с яблоком и корицей">
+  <rect width="640" height="360" fill="#F4EBE0"/>
+  <ellipse cx="320" cy="296" rx="180" ry="24" fill="#E6D8C6"/>
+  <circle cx="320" cy="190" r="126" fill="#FFFDF9"/>
+  <circle cx="320" cy="190" r="104" fill="#EFE3D2"/>
+  <g fill="#CFBDAA">
+    <circle cx="286" cy="176" r="10"/><circle cx="320" cy="160" r="8"/><circle cx="352" cy="180" r="11"/>
+    <circle cx="306" cy="212" r="8"/><circle cx="344" cy="216" r="7"/>
+  </g>
+  <g fill="#B8432E">
+    <path d="M262 152a26 26 0 0 1 42-8 26 26 0 0 1-8 40 24 24 0 0 1-34-32z"/>
+    <path d="M360 204a24 24 0 0 1 38-6 22 22 0 0 1-8 36 22 22 0 0 1-30-30z" opacity=".8"/>
+  </g>
+  <g stroke="#8A4E10" stroke-width="5" stroke-linecap="round">
+    <path d="M300 146v-24M316 144v-28M332 148v-22"/>
+  </g>
+  <g fill="#557351"><ellipse cx="354" cy="152" rx="16" ry="7" transform="rotate(-30 354 152)"/></g>
+</svg>

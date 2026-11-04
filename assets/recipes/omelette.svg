@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Омлет со шпинатом и фетой">
+  <rect width="640" height="360" fill="#F6E7C6"/>
+  <ellipse cx="320" cy="300" rx="200" ry="22" fill="#E6D8C6"/>
+  <circle cx="320" cy="190" r="140" fill="#4A3B2C"/>
+  <circle cx="320" cy="190" r="120" fill="#5A3526"/>
+  <circle cx="320" cy="190" r="104" fill="#8A4E10" opacity=".35"/>
+  <path d="M238 196c10-44 58-72 106-58 40 12 62 48 50 84-12 34-62 46-104 28-34-14-58-30-52-54z" fill="#F6E7C6"/>
+  <path d="M262 192c18-28 58-40 88-22 22 14 24 38 4 50-24 14-64 4-82-10-8-6-14-12-10-18z" fill="#FFFDF9"/>
+  <g fill="#557351">
+    <ellipse cx="286" cy="196" rx="26" ry="11" transform="rotate(-18 286 196)"/>
+    <ellipse cx="352" cy="186" rx="22" ry="10" transform="rotate(22 352 186)"/>
+    <ellipse cx="326" cy="214" rx="18" ry="8"/>
+  </g>
+  <g fill="#FFFDF9"><circle cx="304" cy="176" r="9"/><circle cx="348" cy="208" r="7"/></g>
+  <path d="M470 128l44-32" stroke="#4A3B2C" stroke-width="18" stroke-linecap="round"/>
+</svg>

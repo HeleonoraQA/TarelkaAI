@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Паста с томатами и базиликом">
+  <rect width="640" height="360" fill="#F4EBE0"/>
+  <ellipse cx="320" cy="292" rx="196" ry="26" fill="#E6D8C6"/>
+  <circle cx="320" cy="188" r="132" fill="#FFFDF9"/>
+  <circle cx="320" cy="188" r="108" fill="#F6D9D1"/>
+  <g fill="none" stroke="#B8432E" stroke-width="9" stroke-linecap="round">
+    <path d="M250 178c20-34 62-46 96-26s44 64 12 86-80 2-84-30"/>
+    <path d="M268 206c8-24 38-34 60-20s24 44 2 56-48-2-50-22"/>
+    <path d="M300 160c26-12 54 0 64 24"/>
+  </g>
+  <g fill="#B8432E">
+    <circle cx="262" cy="196" r="13"/>
+    <circle cx="360" cy="166" r="11"/>
+    <circle cx="336" cy="226" r="9"/>
+  </g>
+  <g fill="#557351">
+    <ellipse cx="392" cy="202" rx="22" ry="10" transform="rotate(-24 392 202)"/>
+    <ellipse cx="276" cy="150" rx="18" ry="9" transform="rotate(28 276 150)"/>
+  </g>
+</svg>

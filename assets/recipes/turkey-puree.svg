@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Индейка с картофельным пюре">
+  <rect width="640" height="360" fill="#EFE3D2"/>
+  <ellipse cx="320" cy="300" rx="202" ry="24" fill="#CFBDAA"/>
+  <circle cx="320" cy="184" r="142" fill="#FFFDF9"/>
+  <circle cx="320" cy="184" r="116" fill="#F4EBE0"/>
+  <g fill="#E6D8C6" stroke="#CFBDAA" stroke-width="4">
+    <path d="M210 190c34-28 78-30 112-8 22 14 18 44-8 54-40 16-88 10-108-12-8-10-6-24 4-34z"/>
+    <path d="M230 172c30-22 68-24 96-6 18 12 14 34-8 42-32 12-70 6-88-10-6-6-6-18 0-26z"/>
+  </g>
+  <g fill="#F6D9D1">
+    <path d="M238 186c26-16 58-18 82-4" stroke="#E07A5F" stroke-width="6" fill="none" stroke-linecap="round"/>
+  </g>
+  <g fill="#FFFDF9">
+    <ellipse cx="380" cy="222" rx="46" ry="30"/>
+    <ellipse cx="342" cy="238" rx="36" ry="24"/>
+    <ellipse cx="410" cy="238" rx="32" ry="20"/>
+  </g>
+  <g fill="#557351">
+    <circle cx="430" cy="196" r="7"/><circle cx="448" cy="210" r="6"/><circle cx="424" cy="216" r="5"/>
+  </g>
+  <g fill="#B8432E">
+    <circle cx="196" cy="232" r="6"/><circle cx="212" cy="244" r="5"/>
+  </g>
+  <g stroke="#8A4E10" stroke-width="4" fill="none" stroke-linecap="round">
+    <path d="M182 170l20-18M194 184l22-18"/>
+  </g>
+</svg>

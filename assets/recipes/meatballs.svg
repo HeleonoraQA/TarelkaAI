@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Куриные тефтели на пару с рисом">
+  <rect width="640" height="360" fill="#F3F6EE"/>
+  <ellipse cx="320" cy="302" rx="198" ry="24" fill="#DFE9DA"/>
+  <circle cx="320" cy="186" r="140" fill="#FFFDF9"/>
+  <circle cx="320" cy="186" r="114" fill="#F4EBE0"/>
+  <g fill="#FFFDF9">
+    <ellipse cx="300" cy="214" rx="70" ry="34"/>
+    <ellipse cx="366" cy="198" rx="52" ry="28"/>
+  </g>
+  <g fill="#CFBDAA">
+    <circle cx="270" cy="208" r="3"/><circle cx="286" cy="220" r="3"/><circle cx="304" cy="206" r="3"/>
+    <circle cx="322" cy="220" r="3"/><circle cx="340" cy="208" r="3"/><circle cx="356" cy="218" r="3"/>
+    <circle cx="372" cy="202" r="3"/><circle cx="390" cy="210" r="3"/><circle cx="300" cy="232" r="3"/>
+  </g>
+  <g fill="#8A4E10">
+    <circle cx="280" cy="170" r="24"/>
+    <circle cx="330" cy="158" r="26"/>
+    <circle cx="372" cy="178" r="22"/>
+    <circle cx="314" cy="196" r="23"/>
+  </g>
+  <g fill="#B0713B">
+    <circle cx="274" cy="164" r="8"/>
+    <circle cx="324" cy="152" r="9"/>
+    <circle cx="366" cy="172" r="7"/>
+    <circle cx="308" cy="190" r="8"/>
+  </g>
+  <g fill="#E07A5F">
+    <circle cx="404" cy="156" r="10"/>
+    <circle cx="420" cy="176" r="8"/>
+    <circle cx="398" cy="196" r="7"/>
+  </g>
+  <g fill="#557351">
+    <ellipse cx="250" cy="156" rx="16" ry="7" transform="rotate(-28 250 156)"/>
+    <ellipse cx="386" cy="222" rx="14" ry="6" transform="rotate(20 386 222)"/>
+  </g>
+</svg>

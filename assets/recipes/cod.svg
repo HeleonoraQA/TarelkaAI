@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Паровая треска с картофельным пюре">
+  <rect width="640" height="360" fill="#DDE8EC"/>
+  <ellipse cx="320" cy="300" rx="196" ry="24" fill="#C9D9DF"/>
+  <circle cx="320" cy="185" r="138" fill="#FFFDF9"/>
+  <circle cx="320" cy="185" r="112" fill="#F4EBE0"/>
+  <path d="M220 196c42-38 128-46 178-12 24 16 18 48-10 60-46 20-132 14-166-14-12-10-12-24-2-34z" fill="#F6E7C6" stroke="#CFBDAA" stroke-width="4"/>
+  <path d="M250 190c30-14 78-16 108-4" stroke="#FFFDF9" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <g fill="#FFFDF9">
+    <ellipse cx="392" cy="222" rx="34" ry="24"/>
+    <ellipse cx="352" cy="236" rx="28" ry="20"/>
+    <ellipse cx="310" cy="242" rx="24" ry="17"/>
+  </g>
+  <g fill="#557351">
+    <ellipse cx="432" cy="206" rx="18" ry="8" transform="rotate(-24 432 206)"/>
+    <ellipse cx="242" cy="214" rx="14" ry="6" transform="rotate(20 242 214)"/>
+  </g>
+  <circle cx="430" cy="176" r="16" fill="#F6E7C6" stroke="#CFBDAA" stroke-width="3"/>
+  <path d="M430 160v32M414 176h32" stroke="#CFBDAA" stroke-width="3"/>
+  <g stroke="#FFFDF9" stroke-width="5" fill="none" stroke-linecap="round" opacity=".8">
+    <path d="M286 104c8-14 8-24 0-34"/>
+    <path d="M320 98c8-14 8-24 0-34"/>
+  </g>
+</svg>

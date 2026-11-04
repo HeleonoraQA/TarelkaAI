@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Тунец с рисом и зелёным горошком">
+  <rect width="640" height="360" fill="#DDE8EC"/>
+  <ellipse cx="320" cy="302" rx="192" ry="22" fill="#C9D9DF"/>
+  <path d="M164 178h312v50a100 100 0 0 1-100 100H264a100 100 0 0 1-100-100z" fill="#FFFDF9"/>
+  <ellipse cx="320" cy="178" rx="156" ry="40" fill="#FFFDF9"/>
+  <ellipse cx="320" cy="180" rx="132" ry="32" fill="#F4EBE0"/>
+  <g fill="#FFFDF9">
+    <ellipse cx="286" cy="178" rx="58" ry="26"/>
+    <ellipse cx="362" cy="190" rx="52" ry="24"/>
+  </g>
+  <g fill="#CFBDAA">
+    <circle cx="256" cy="168" r="3"/><circle cx="274" cy="182" r="3"/><circle cx="296" cy="166" r="3"/>
+    <circle cx="312" cy="184" r="3"/><circle cx="338" cy="180" r="3"/><circle cx="356" cy="194" r="3"/>
+    <circle cx="378" cy="184" r="3"/><circle cx="396" cy="196" r="3"/><circle cx="286" cy="196" r="3"/>
+  </g>
+  <g fill="#E07A5F">
+    <path d="M300 146c18-12 42-8 50 8 8 16-2 32-18 34-20 2-38-8-40-22-2-8 2-14 8-20z"/>
+    <path d="M356 162c14-8 32-4 38 8 6 12-2 24-14 26-16 2-30-6-32-18-2-6 2-12 8-16z"/>
+  </g>
+  <g fill="#F6D9D1">
+    <path d="M314 154c10-6 24-4 30 4" stroke="#F6D9D1" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+  <g fill="#557351">
+    <circle cx="262" cy="214" r="7"/><circle cx="278" cy="226" r="6"/><circle cx="246" cy="228" r="5"/>
+    <circle cx="390" cy="222" r="6"/><circle cx="406" cy="234" r="5"/>
+  </g>
+  <g fill="#F6E7C6" stroke="#CFBDAA" stroke-width="3">
+    <path d="M228 140a24 24 0 0 1 30 30 24 24 0 0 1-30-30z"/>
+  </g>
+  <g stroke="#FFFDF9" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8">
+    <path d="M300 100c8-12 8-22 0-32"/>
+    <path d="M356 96c8-12 8-22 0-32"/>
+  </g>
+</svg>

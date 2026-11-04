@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Лосось с брокколи в духовке">
+  <rect width="640" height="360" fill="#DDE8EC"/>
+  <ellipse cx="320" cy="300" rx="206" ry="24" fill="#CFBDAA"/>
+  <rect x="126" y="118" width="388" height="158" rx="26" fill="#4A3B2C"/>
+  <rect x="140" y="132" width="360" height="130" rx="20" fill="#5A3526"/>
+  <path d="M196 168c44-22 118-22 158 0 26 14 24 54-4 64-40 14-114 14-152-2-22-10-24-48-2-62z" fill="#E07A5F"/>
+  <path d="M216 186c34-14 88-14 116 0" stroke="#F6D9D1" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M204 214c38 12 94 12 130 0" stroke="#F6D9D1" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <g fill="#557351">
+    <circle cx="398" cy="172" r="22"/><circle cx="430" cy="188" r="18"/><circle cx="384" cy="204" r="15"/>
+  </g>
+  <g fill="#35502F"><circle cx="402" cy="180" r="4"/><circle cx="424" cy="192" r="3"/><circle cx="388" cy="208" r="3"/></g>
+  <g stroke="#8A4E10" stroke-width="6" stroke-linecap="round">
+    <path d="M170 226l-12 22M470 162l14-18"/>
+  </g>
+</svg>
