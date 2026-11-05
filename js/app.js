@@ -86,6 +86,8 @@
   var current = 'onboarding';
   var navStack = [];
   var returnFocus = null;
+  // Кнопка, из которой открыли Discover: на неё возвращаем фокус при отмене.
+  var discoverOpener = null;
   var stepIndex = 0;
   var pendingSlot = null;
   var activeRecipe = null;
@@ -1081,8 +1083,15 @@
       return;
     }
 
+    var opener = discoverOpener && discoverOpener.isConnected ? discoverOpener : null;
+    discoverOpener = null;
+
     navStack.length = 0;
-    showScreen('home', { track: false });
+    // Заголовок фокусируем только если кнопки-источника уже нет на странице.
+    showScreen('home', { track: false, focus: !opener });
+
+    if (opener) opener.focus({ preventScroll: true });
+    returnFocus = null;
   }
 
   function generatePlan() {
@@ -1375,6 +1384,7 @@
 
       if (slot && assignRecipe(addPick.dataset.addPick, slot)) {
         pendingSlot = null;
+        discoverOpener = null;
         navStack.length = 0;
         showScreen('home', { track: false, focus: false });
         focusSlot(slot);
@@ -1386,6 +1396,7 @@
 
     var emptySlot = target.closest('[data-open-discover]');
     if (emptySlot) {
+      discoverOpener = emptySlot;
       openDiscover(Number(emptySlot.dataset.dayIndex), emptySlot.dataset.meal);
       return;
     }
@@ -1408,6 +1419,7 @@
 
       if (assignRecipe(assignButton.dataset.assignRecipe, targetSlot)) {
         pendingSlot = null;
+        discoverOpener = null;
         navStack.length = 0;
         showScreen('home', { track: false, focus: false });
         focusSlot(targetSlot);
