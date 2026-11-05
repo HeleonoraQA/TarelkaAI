@@ -1046,77 +1046,38 @@ body[data-screen="recipe"] .tabbar {
 }
 
 /* =========================================================
-   12. Discover: нижний лист на мобиле, модалка на десктопе
+   12. Discover: полноэкранный диалог
    ========================================================= */
 
-.screen--sheet {
+.screen--dialog {
   position: fixed;
   inset: 0;
   z-index: var(--z-dialog);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: end;
-  min-height: 0;
-}
-
-.sheet__backdrop {
-  position: absolute;
-  inset: 0;
-  background: var(--color-backdrop);
-}
-
-.sheet__panel {
-  position: relative;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  max-width: 100%;
-  max-height: 88dvh;
-  padding-bottom: var(--safe-area-bottom);
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  min-height: 0;
   background: var(--color-bg);
-  box-shadow: var(--shadow-lg);
-  animation: sheet-in var(--transition-slow);
+  animation: dialog-in var(--transition-slow);
 }
 
-.sheet__header {
-  padding: var(--space-1) var(--space-4) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
+.screen--dialog .screen__header {
+  flex: none;
 }
 
-.sheet__handle {
-  display: block;
-  width: 40px;
-  height: 4px;
-  margin: 0 auto var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--color-border-strong);
-}
-
-.sheet__headline {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.sheet__title {
-  flex: 1;
-  min-width: 0;
+/* Заголовок диалога содержит день и приём пищи — разрешаем перенос. */
+.screen--dialog .screen__title {
   font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  white-space: normal;
+  overflow: visible;
 }
 
-.sheet__subtitle {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.sheet__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
+.screen--dialog .content {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-3) var(--space-4) var(--space-5);
+  padding-bottom: calc(var(--space-6) + var(--safe-area-bottom));
 }
 
 .search {
@@ -1209,13 +1170,11 @@ body[data-screen="recipe"] .tabbar {
   flex: none;
 }
 
-@keyframes sheet-in {
+@keyframes dialog-in {
   from {
-    transform: translateY(24px);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -1394,23 +1353,6 @@ body[data-screen="recipe"] .tabbar {
    ========================================================= */
 
 @media (min-width: 768px) {
-  .screen--sheet {
-    align-items: center;
-    justify-items: center;
-    padding: var(--space-5);
-  }
-
-  .sheet__panel {
-    width: 100%;
-    max-width: 640px;
-    max-height: 80dvh;
-    border-radius: var(--radius-xl);
-  }
-
-  .sheet__handle {
-    display: none;
-  }
-
   .step-panel,
   .onboarding__header,
   .onboarding__progress {
@@ -1488,14 +1430,6 @@ body[data-screen="recipe"] .tabbar {
 
   .recipe__body {
     padding-top: var(--space-5);
-  }
-
-  .screen--sheet {
-    padding: var(--space-6);
-  }
-
-  .sheet__panel {
-    max-width: 720px;
   }
 
   .toast {

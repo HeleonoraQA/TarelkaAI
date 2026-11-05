@@ -259,41 +259,36 @@
       </section>
 
       <!-- =====================================================
-           5. Discover: подборка рецептов для пустой ячейки
+           5. Discover: полноэкранный диалог с подборкой рецептов
            ===================================================== -->
-      <section class="screen screen--sheet" data-screen="discover" role="dialog" aria-modal="true" aria-labelledby="discover-title" hidden>
-        <div class="sheet__backdrop" data-back aria-hidden="true"></div>
-
-        <div class="sheet__panel">
-          <header class="sheet__header">
-            <span class="sheet__handle" aria-hidden="true"></span>
-            <div class="sheet__headline">
-              <h2 class="sheet__title" id="discover-title">Что добавить?</h2>
-              <button class="icon-btn" type="button" data-back aria-label="Закрыть">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-x"></use></svg>
-              </button>
-            </div>
-            <p class="sheet__subtitle">Подобрали под ваши ограничения</p>
-          </header>
-
-          <div class="sheet__body">
-            <div class="search">
-              <svg class="icon search__icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>
-              <label class="visually-hidden" for="discover-search">Поиск по названию или ингредиенту</label>
-              <input class="field__input search__input" id="discover-search" type="search" placeholder="Поиск по названию или ингредиенту" autocomplete="off">
-            </div>
-
-            <div class="chip-group">
-              <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="fast">До 20 минут</button>
-              <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="breakfast">Завтрак</button>
-              <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="lunch">Обед</button>
-              <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="dinner">Ужин</button>
-              <button class="btn btn--text btn--sm" type="button" data-filter-reset>Сбросить</button>
-            </div>
-
-            <ul class="picks" data-picks></ul>
-            <p class="empty" data-picks-empty hidden>Под эти условия ничего не нашлось. Попробуйте снять фильтры.</p>
+      <section class="screen screen--dialog" data-screen="discover" role="dialog" aria-modal="true" aria-labelledby="discover-title" hidden>
+        <header class="screen__header">
+          <div class="screen__heading">
+            <h2 class="screen__title" id="discover-title">Что добавить?</h2>
+            <p class="screen__subtitle">Подобрали под ваши ограничения</p>
           </div>
+          <button class="icon-btn" type="button" data-back aria-label="Закрыть">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-x"></use></svg>
+          </button>
+        </header>
+
+        <div class="content content--narrow">
+          <div class="search">
+            <svg class="icon search__icon" aria-hidden="true" focusable="false"><use href="#icon-search"></use></svg>
+            <label class="visually-hidden" for="discover-search">Поиск по названию или ингредиенту</label>
+            <input class="field__input search__input" id="discover-search" type="search" placeholder="Поиск по названию или ингредиенту" autocomplete="off">
+          </div>
+
+          <div class="chip-group">
+            <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="fast">До 20 минут</button>
+            <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="breakfast">Завтрак</button>
+            <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="lunch">Обед</button>
+            <button class="chip chip--toggle" type="button" aria-pressed="false" data-filter="dinner">Ужин</button>
+            <button class="btn btn--text btn--sm" type="button" data-filter-reset>Сбросить</button>
+          </div>
+
+          <ul class="picks" data-picks></ul>
+          <p class="empty" data-picks-empty hidden>Под эти условия ничего не нашлось. Попробуйте снять фильтры.</p>
         </div>
       </section>
 

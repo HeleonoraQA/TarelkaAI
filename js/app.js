@@ -1063,6 +1063,11 @@
 
     syncFilterChips();
     renderPicks();
+
+    /* Полноэкранный диалог открывается с начала списка. */
+    var scroller = document.querySelector('.screen[data-screen="discover"] .content');
+    if (scroller) scroller.scrollTop = 0;
+
     showScreen('discover');
   }
 
@@ -1577,7 +1582,7 @@
 
     if (event.key !== 'Tab' || current !== 'discover') return;
 
-    var panel = document.querySelector('.screen[data-screen="discover"] .sheet__panel');
+    var panel = document.querySelector('.screen[data-screen="discover"]');
     if (!panel) return;
 
     var focusable = Array.prototype.filter.call(
