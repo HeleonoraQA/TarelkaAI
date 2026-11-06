@@ -39,7 +39,7 @@
   var ALLERGENS = ['gluten', 'nuts', 'milk', 'eggs', 'fish', 'soy'];
   var PEOPLE = [2, 4, 6];
 
-  var APP_VERSION = '1';
+  var APP_VERSION = '1.0';
 
   var DIET_LABELS = {
     none: 'Без ограничений',
