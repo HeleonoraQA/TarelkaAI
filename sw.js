@@ -2,12 +2,17 @@
  * Tarelka — минимальный service worker для офлайна.
  *
  * Стратегии:
- * - навигация: сеть -> кэш (офлайн открываем сохранённую оболочку);
+ * - навигация: сеть -> кэш (офлайн и при ответе-ошибке открываем
+ *   сохранённую оболочку);
  * - статика: сеть -> кэш, успешный ответ обновляет кэш;
  * - не-GET и чужие origin не трогаем.
  *
  * Сеть в приоритете, чтобы обновления файлов подхватывались без ручной
  * очистки кэша. Офлайн-фолбэк при этом остаётся рабочим.
+ *
+ * Ответ с ошибкой (502, 503, 504 и любой не-ok) считаем недоступностью
+ * сети: страница прокси может ответить ошибкой вместо обрыва соединения,
+ * и без этой ветки пользователь увидел бы пустой экран вместо приложения.
  *
  * При изменении списка файлов поднимаем CACHE_VERSION — старый кэш удалится.
  */
@@ -75,6 +80,16 @@ self.addEventListener('activate', function (event) {
   );
 });
 
+/**
+ * Отдаёт сохранённую копию, если сеть ответила ошибкой.
+ * Кэша нет — возвращаем ответ сети как есть, чтобы не потерять код ошибки.
+ */
+function fromCacheOrResponse(cacheKey, response) {
+  return caches.match(cacheKey).then(function (cached) {
+    return cached || response;
+  });
+}
+
 self.addEventListener('fetch', function (event) {
   var request = event.request;
 
@@ -85,6 +100,8 @@ self.addEventListener('fetch', function (event) {
     event.respondWith(
       fetch(request)
         .then(function (response) {
+          if (!response.ok) return fromCacheOrResponse('./index.html', response);
+
           var copy = response.clone();
           caches.open(CACHE_VERSION).then(function (cache) {
             cache.put('./index.html', copy);
@@ -101,12 +118,12 @@ self.addEventListener('fetch', function (event) {
   event.respondWith(
     fetch(request)
       .then(function (response) {
-        if (response.ok) {
-          var copy = response.clone();
-          caches.open(CACHE_VERSION).then(function (cache) {
-            cache.put(request, copy);
-          });
-        }
+        if (!response.ok) return fromCacheOrResponse(request, response);
+
+        var copy = response.clone();
+        caches.open(CACHE_VERSION).then(function (cache) {
+          cache.put(request, copy);
+        });
         return response;
       })
       .catch(function () {
