@@ -1,0 +1,1315 @@
+openapi: 3.0.3
+
+info:
+  title: Tarelka — серверный API
+  version: '1.1'
+  description: |
+    Спецификация серверного API Tarelka для Swagger UI. API делится на четыре
+    группы: Supabase Auth (`/auth/v1/*`), прямой REST каталога (`/rest/v1/recipes`),
+    прямой REST профиля (`/rest/v1/profiles`) и RPC-функции Postgres схемы
+    `public` (`/rest/v1/rpc/{имя_функции}`). RPC вызываются методом POST с
+    JSON-объектом именованных аргументов; аргументы со значениями по умолчанию
+    можно не передавать.
+
+    Пользовательские операции доступны только вошедшему пользователю
+    (`authenticated`) и работают исключительно с его данными: функции и таблицы
+    выполняются с правами вызывающего, RLS включён. Роль `anon` не имеет права
+    EXECUTE на RPC и получит ошибку 403; каталог доступен на чтение и анонимно.
+    Supabase требует заголовок `apikey` с publishable key проекта. Защищённые
+    операции дополнительно требуют `Authorization: Bearer <access_token>`.
+
+    Hosted Supabase REST/RPC уже разрешает CORS для всех origin, методов
+    `GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD` и заголовков `authorization,
+    x-client-info, apikey, content-type`. Отдельная настройка origin через SQL
+    не требуется; клиентская проверка выполняется в браузере с `http://localhost`.
+
+    Недельный план — массив из 7 дней, в каждом три слота: `breakfast`,
+    `lunch`, `dinner`. Значение слота — id рецепта или `null`. Неизвестные id
+    рецептов при записи нормализуются в `null`.
+
+    Список покупок не хранится: он собирается при каждом вызове из плана,
+    числа людей в профиле, ручных позиций и отметок. Ключ позиции плана имеет
+    вид `plan|отдел|название|единица`, ключ ручной позиции — `manual|id`.
+
+    Подробный контракт и алгоритм — в `docs/architecture.md` §10, правила
+    округления — в `docs/spec.md` §5.1–§5.3.
+
+servers:
+  - url: https://{project_ref}.supabase.co
+    description: Проект Supabase с применёнными миграциями Tarelka.
+    variables:
+      project_ref:
+        default: your-project-ref
+        description: Идентификатор проекта Supabase (ref).
+
+security:
+  - BearerAuth: []
+    ApiKeyAuth: []
+
+tags:
+  - name: Авторизация
+    description: Регистрация, вход и обновление сессии Supabase Auth по email и паролю.
+  - name: Каталог
+    description: Чтение нормализованного каталога рецептов через Supabase REST.
+  - name: Профиль
+    description: Чтение и сохранение профиля прямым REST с RLS по user_id.
+  - name: План
+    description: Чтение и изменение недельного плана на 7 дней × 3 приёма пищи.
+  - name: Покупки
+    description: Сборка списка покупок, ручные позиции и отметки.
+  - name: Служебные функции
+    description: |
+      Хелперы разбора и округления количеств. Доступны вошедшим пользователям
+      и используются функцией сборки списка покупок.
+
+paths:
+  /auth/v1/signup:
+    post:
+      tags:
+        - Авторизация
+      summary: Зарегистрировать пользователя по email и паролю
+      description: |
+        Создаёт пользователя Supabase Auth. В проекте подтверждение email
+        выключено (Authentication → Providers → Email → Confirm email), поэтому
+        письма не отправляются, ответ сразу содержит access token и refresh token,
+        а хеш пароля хранится в auth.users. Publishable key обязателен, JWT не нужен.
+      operationId: auth_sign_up
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthSignUpRequest'
+            example:
+              email: user@example.com
+              password: example-password
+      responses:
+        '200':
+          description: Пользователь создан без письма; сессия возвращается сразу.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/v1/token:
+    post:
+      tags:
+        - Авторизация
+      summary: Войти или обновить сессию
+      description: |
+        С параметром `grant_type=password` возвращает сессию по email и паролю.
+        С `grant_type=refresh_token` обновляет истёкший access token. Тело запроса
+        зависит от `grant_type`. Publishable key обязателен, JWT не нужен.
+      operationId: auth_token
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: grant_type
+          required: true
+          description: Тип гранта: вход по паролю или обновление сессии.
+          schema:
+            type: string
+            enum:
+              - password
+              - refresh_token
+          example: password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/AuthPasswordRequest'
+                - $ref: '#/components/schemas/AuthRefreshRequest'
+            example:
+              email: user@example.com
+              password: example-password
+      responses:
+        '200':
+          description: Сессия Supabase Auth.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /rest/v1/recipes:
+    get:
+      tags:
+        - Каталог
+      summary: Получить каталог рецептов
+      description: |
+        Читает нормализованный каталог через PostgREST. Параметр `select` должен
+        включать вложенные шаги, ингредиенты, теги, категории и аллергены, чтобы
+        клиент собрал объект рецепта формата `window.TARELKA`. Чтение разрешено
+        ролям `anon` и `authenticated`; запись клиентским ролям недоступна.
+      operationId: get_catalog
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: select
+          required: true
+          description: Список полей и вложенных связей PostgREST.
+          schema:
+            type: string
+          example: >-
+            id,title,time,servings,intro,image,recipe_steps(body),
+            recipe_ingredients(ingredient_name,amount,unit,position),
+            recipe_tags(tag_name),recipe_categories(category_key),
+            recipe_allergens(allergen_key),departments(key,title,sort_order)
+        - in: query
+          name: order
+          required: false
+          description: Сортировка PostgREST.
+          schema:
+            type: string
+          example: title.asc
+      responses:
+        '200':
+          description: Массив рецептов с вложенными данными.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecipeRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /rest/v1/profiles:
+    get:
+      tags:
+        - Профиль
+      summary: Получить профиль текущего пользователя
+      description: |
+        Возвращает строку `public.profiles` текущего пользователя. RLS
+        ограничивает выборку `user_id = auth.uid()`; фильтр `user_id=eq.<uid>`
+        дублирует это условие на стороне запроса.
+      operationId: get_profile
+      parameters:
+        - in: query
+          name: user_id
+          required: true
+          description: Фильтр PostgREST по идентификатору пользователя.
+          schema:
+            type: string
+          example: eq.00000000-0000-0000-0000-000000000000
+        - in: query
+          name: select
+          required: false
+          schema:
+            type: string
+          example: user_id,onboarded,diet,allergies,people,updated_at
+      responses:
+        '200':
+          description: Профиль пользователя; пустой массив, если строки ещё нет.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Профиль
+      summary: Создать или обновить профиль (upsert)
+      description: |
+        Пишет профиль прямым REST в `public.profiles`. Заголовок
+        `Prefer: resolution=merge-duplicates,return=representation` превращает
+        запрос в upsert по первичному ключу `user_id` и возвращает сохранённую
+        строку. RLS разрешает только свои строки; новые RPC не используются.
+      operationId: save_profile
+      parameters:
+        - in: header
+          name: Prefer
+          required: true
+          description: Управляет поведением upsert и форматом ответа PostgREST.
+          schema:
+            type: string
+          example: resolution=merge-duplicates,return=representation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpsertRequest'
+            example:
+              user_id: 00000000-0000-0000-0000-000000000000
+              onboarded: true
+              diet: none
+              allergies: []
+              people: 4
+      responses:
+        '200':
+          description: Сохранённый профиль.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_get_plan:
+    post:
+      tags:
+        - План
+      summary: Получить недельный план
+      description: |
+        Возвращает план текущего пользователя: ровно 7 дней по 3 слота —
+        `breakfast`, `lunch`, `dinner`. Если записи плана ещё нет, функция
+        возвращает семь пустых дней, не создавая строку в базе. Значение слота —
+        id рецепта из каталога или `null`. Требуется вошедший пользователь:
+        без `auth.uid()` функция выбрасывает исключение с кодом `P0001`.
+      operationId: api_get_plan
+      responses:
+        '200':
+          description: План текущего пользователя, нормализованный к 7 дням.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekPlan'
+              example:
+                - breakfast: oatmeal
+                  lunch: soup
+                  dinner: pasta
+                - breakfast: null
+                  lunch: null
+                  dinner: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_set_plan:
+    post:
+      tags:
+        - План
+      summary: Полностью заменить недельный план
+      description: |
+        Заменяет весь план текущего пользователя переданным массивом дней.
+        Массив нормализуется: короткий дополняется пустыми днями, лишние дни
+        отбрасываются, объекты дней приводятся к трём слотам, а неизвестные
+        id рецептов заменяются на `null`. Возвращается сохранённый
+        нормализованный план. Если `p_days` не массив, функция выбрасывает
+        исключение. Триггер `week_plans_validate` дополнительно проверяет
+        7 дней, 3 слота в каждом и существование id рецепта.
+      operationId: api_set_plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiSetPlanRequest'
+      responses:
+        '200':
+          description: Сохранённый план после нормализации.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_set_meal:
+    post:
+      tags:
+        - План
+      summary: Назначить или очистить одну ячейку плана
+      description: |
+        Устанавливает рецепт в ячейку плана: `p_day` — номер дня от 0 до 6,
+        `p_slot` — один из `breakfast`, `lunch`, `dinner`. Если `p_recipe_id`
+        равен `null` или пустой строке, ячейка очищается. Неизвестный id
+        рецепта тоже очищает ячейку. Возвращается обновлённый план целиком.
+        Если плана ещё нет, он создаётся пустым перед изменением. День вне
+        диапазона 0…6 и неизвестный слот приводят к исключению `P0001`.
+      operationId: api_set_meal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiSetMealRequest'
+            examples:
+              set:
+                summary: Назначить завтрак в первый день
+                value:
+                  p_day: 0
+                  p_slot: breakfast
+                  p_recipe_id: oatmeal
+              clear:
+                summary: Очистить обед во второй день
+                value:
+                  p_day: 1
+                  p_slot: lunch
+                  p_recipe_id: null
+      responses:
+        '200':
+          description: План после изменения одной ячейки.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekPlan'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_get_shopping:
+    post:
+      tags:
+        - Покупки
+      summary: Собрать список покупок
+      description: |
+        Собирает список покупок текущего пользователя из плана, числа людей в
+        профиле (`people`, по умолчанию 4), ручных позиций и отметок. Список не
+        хранится в базе и пересобирается при каждом вызове.
+
+        Для каждого ингредиента множитель равен `people / servings`. Количества
+        складываются по сырым значениям до округления, затем округляются по
+        единице: штуки — вверх до целого, минимум 1; граммы и миллилитры —
+        до 5, минимум 5; столовые и чайные ложки — до 0,5, минимум 0,5;
+        остальные единицы — до одного знака. Ингредиенты с одинаковыми
+        отделом, названием и единицей объединяются в одну позицию по ключу
+        `plan|отдел|название|единица`. Позиции без числового количества
+        выводятся как «по вкусу». Ручные позиции добавляются отдельными
+        строками с ключом `manual|id` без округления.
+
+        Возвращаются только непустые группы отделов в порядке
+        `departments.sort_order`; внутри группы сначала идут ингредиенты плана
+        в порядке дней и слотов, затем ручные позиции в порядке добавления.
+        Поле `done` равно `true`, если для ключа есть отметка.
+      operationId: api_get_shopping
+      responses:
+        '200':
+          description: Сгруппированный по отделам список покупок.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShoppingGroup'
+              example:
+                - key: veg
+                  title: Овощи и фрукты
+                  items:
+                    - key: 'plan|veg|Томаты|шт'
+                      name: Томаты
+                      dept: veg
+                      source: из плана
+                      manualId: null
+                      amountText: 5 шт
+                      done: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_add_manual:
+    post:
+      tags:
+        - Покупки
+      summary: Добавить ручную позицию в список покупок
+      description: |
+        Добавляет позицию, которой нет в рецептах, например «Бумажные
+        полотенца». Название должно быть от 1 до 80 символов, количество —
+        не длиннее 40 символов и сохраняется как есть, без округления. Отдел
+        по умолчанию `other`; неизвестный отдел также нормализуется в `other`.
+        Источник — `вручную` (по умолчанию) или `из рецепта`. Возвращает
+        сгенерированный сервером id вида `m<цифры>`; он используется в ключе
+        отметки `manual|id`.
+      operationId: api_add_manual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiAddManualRequest'
+            example:
+              p_name: Бумажные полотенца
+              p_amount: 2 банки
+              p_dept: other
+              p_source: вручную
+      responses:
+        '200':
+          description: Id добавленной ручной позиции.
+          content:
+            application/json:
+              schema:
+                type: string
+                pattern: '^m[0-9]+$'
+              example: m1730553600000123
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_remove_manual:
+    post:
+      tags:
+        - Покупки
+      summary: Удалить ручную позицию
+      description: |
+        Удаляет ручную позицию текущего пользователя по её id вместе с
+        связанной отметкой `manual|id`. Возвращает `true`, если позиция
+        существовала, и `false`, если её не было. Позиции другого пользователя
+        недоступны: RLS ограничивает удаление его строками.
+      operationId: api_remove_manual
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiRemoveManualRequest'
+      responses:
+        '200':
+          description: true, если позиция была удалена.
+          content:
+            application/json:
+              schema:
+                type: boolean
+              example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_set_checked:
+    post:
+      tags:
+        - Покупки
+      summary: Поставить или снять отметку позиции
+      description: |
+        Устанавливает или снимает отметку покупки. `p_key` — ключ позиции:
+        `plan|отдел|название|единица` для ингредиента плана или `manual|id`
+        для ручной позиции. `p_done = true` (значение по умолчанию) означает
+        «куплено», `false` — снимает отметку. Возвращает `true`. Отметка не
+        привязана к количеству и сохраняется при пересборке плана. Ключ
+        неверного формата отклоняется CHECK-ограничением базы данных.
+      operationId: api_set_checked
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiSetCheckedRequest'
+            example:
+              p_key: 'plan|veg|Томаты|шт'
+              p_done: true
+      responses:
+        '200':
+          description: true, если отметка сохранена.
+          content:
+            application/json:
+              schema:
+                type: boolean
+              example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/api_unset_checked:
+    post:
+      tags:
+        - Покупки
+      summary: Полностью удалить отметку позиции
+      description: |
+        Удаляет запись об отметке для указанного ключа текущего пользователя.
+        В отличие от `api_set_checked` с `p_done = false`, запись исчезает из
+        таблицы полностью. Возвращает `true`, если отметка была, и `false`,
+        если её не существовало.
+      operationId: api_unset_checked
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiUnsetCheckedRequest'
+      responses:
+        '200':
+          description: true, если отметка была удалена.
+          content:
+            application/json:
+              schema:
+                type: boolean
+              example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/shopping_parse_amount:
+    post:
+      tags:
+        - Служебные функции
+      summary: Разобрать количество из строки
+      description: |
+        Разбирает число из текстового количества ингредиента. Допускается
+        десятичная запятая; пробелы по краям игнорируются. Пустая строка,
+        «по вкусу» и любая нечисловая строка возвращают `null`. Функция
+        используется при сборке списка покупок и доступна вошедшим
+        пользователям для проверки правил разбора.
+      operationId: shopping_parse_amount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShoppingParseAmountRequest'
+            example:
+              p_amount: 0,5
+      responses:
+        '200':
+          description: Разобранное число или null для нечислового значения.
+          content:
+            application/json:
+              schema:
+                type: number
+                nullable: true
+              example: 0.5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/shopping_round:
+    post:
+      tags:
+        - Служебные функции
+      summary: Округлить количество по единице измерения
+      description: |
+        Округляет значение по правилам из `docs/spec.md` §5.1. Для `шт`,
+        `шт.`, `зуб.`, `банка`, `ломтика` результат — `ceil` с вычитанием
+        epsilon, минимум 1; для `г` и `мл` — кратно 5, минимум 5; для
+        `ст. л.` и `ч. л.` — кратно 0,5, минимум 0,5; для остальных единиц —
+        до одного знака после запятой. Функция используется при сборке списка
+        покупок после суммирования сырых количеств.
+      operationId: shopping_round
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShoppingRoundRequest'
+            example:
+              p_value: 1.3
+              p_unit: ч. л.
+      responses:
+        '200':
+          description: Округлённое значение.
+          content:
+            application/json:
+              schema:
+                type: number
+              example: 1.5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /rest/v1/rpc/format_shopping_amount:
+    post:
+      tags:
+        - Служебные функции
+      summary: Отформатировать число для списка покупок
+      description: |
+        Приводит число к тексту с десятичной запятой и не более чем одним
+        знаком после неё: `5` → «5», `0.5` → «0,5». Используется функцией
+        сборки списка покупок для поля `amountText`.
+      operationId: format_shopping_amount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormatShoppingAmountRequest'
+            example:
+              p_value: 0.5
+      responses:
+        '200':
+          description: Отформатированное число в виде строки.
+          content:
+            application/json:
+              schema:
+                type: string
+              example: '0,5'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT вошедшего пользователя Supabase Auth. Без него `auth.uid()` пуст,
+        и каждая функция выбрасывает исключение; ознакомиться с API анонимно
+        нельзя — роль `anon` не имеет EXECUTE.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Публичный ключ проекта Supabase; обязателен для REST-запроса.
+
+  responses:
+    BadRequest:
+      description: |
+        Некорректный аргумент или ошибка базы данных. Supabase возвращает код
+        PostgreSQL (например, `P0001`) и текстовое сообщение на русском языке.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: P0001
+            details: null
+            hint: null
+            message: День должен быть от 0 до 6
+    Unauthorized:
+      description: |
+        Запрос без JWT или с истёкшим JWT: вошедшего пользователя нет.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: P0001
+            details: null
+            hint: null
+            message: Требуется вход в систему
+    ValidationError:
+      description: |
+        Ошибка валидации Supabase Auth, например короткий пароль или некорректный email.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: '422'
+            details: null
+            hint: null
+            message: Password should be at least 6 characters
+    Forbidden:
+      description: |
+        Недостаточно прав: у роли `anon` нет EXECUTE на функцию API.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: '42501'
+            details: null
+            hint: null
+            message: permission denied for function api_get_plan
+
+  schemas:
+    AuthUser:
+      type: object
+      description: Пользователь Supabase Auth.
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Идентификатор пользователя, совпадает с auth.uid().
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Email пользователя, если провайдер его вернул.
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Время создания пользователя.
+
+    AuthSession:
+      type: object
+      description: Сессия Supabase Auth. Токены могут отсутствовать, если требуется подтверждение email.
+      required:
+        - user
+      properties:
+        access_token:
+          type: string
+          nullable: true
+          description: JWT для заголовка Authorization.
+        refresh_token:
+          type: string
+          nullable: true
+          description: Токен обновления сессии.
+        expires_in:
+          type: integer
+          nullable: true
+          description: Срок жизни access_token в секундах.
+        token_type:
+          type: string
+          nullable: true
+          description: Тип токена, обычно bearer.
+        user:
+          $ref: '#/components/schemas/AuthUser'
+
+    AuthSignUpRequest:
+      type: object
+      description: Данные регистрации по email и паролю.
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: example-password
+
+    AuthPasswordRequest:
+      type: object
+      description: Данные входа по email и паролю.
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: example-password
+
+    AuthRefreshRequest:
+      type: object
+      description: Данные обновления сессии.
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Токен из предыдущей сессии.
+          example: previous-refresh-token
+
+    Profile:
+      type: object
+      description: Профиль пользователя из `public.profiles`.
+      required:
+        - user_id
+        - onboarded
+        - diet
+        - allergies
+        - people
+        - updated_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: Владелец профиля; равен auth.uid().
+        onboarded:
+          type: boolean
+          description: Признак завершённого онбординга.
+          example: true
+        diet:
+          type: string
+          enum:
+            - none
+            - protein
+            - light
+            - gentle
+          example: none
+        allergies:
+          type: array
+          description: Подмножество допустимых аллергенов.
+          items:
+            type: string
+            enum:
+              - gluten
+              - nuts
+              - milk
+              - eggs
+              - fish
+              - soy
+          example: []
+        people:
+          type: integer
+          enum:
+            - 2
+            - 4
+            - 6
+          description: Количество человек для пересчёта порций.
+          example: 4
+        updated_at:
+          type: string
+          format: date-time
+          description: Время последнего обновления профиля.
+
+    ProfileUpsertRequest:
+      type: object
+      description: Тело upsert профиля. `user_id` должен совпадать с вошедшим пользователем.
+      required:
+        - user_id
+        - onboarded
+        - diet
+        - allergies
+        - people
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+        onboarded:
+          type: boolean
+          example: true
+        diet:
+          type: string
+          enum:
+            - none
+            - protein
+            - light
+            - gentle
+          example: none
+        allergies:
+          type: array
+          items:
+            type: string
+            enum:
+              - gluten
+              - nuts
+              - milk
+              - eggs
+              - fish
+              - soy
+          example:
+            - gluten
+        people:
+          type: integer
+          enum:
+            - 2
+            - 4
+            - 6
+          example: 4
+
+    RecipeRecord:
+      type: object
+      description: Рецепт из каталога Postgres с вложенными связями PostgREST.
+      required:
+        - id
+        - title
+        - time
+        - servings
+        - intro
+        - image
+      properties:
+        id:
+          type: string
+          description: Slug рецепта, используется в плане.
+          example: pasta
+        title:
+          type: string
+          example: Паста с томатами и базиликом
+        time:
+          type: integer
+          description: Время приготовления в минутах.
+          example: 25
+        servings:
+          type: integer
+          description: Базовое число порций рецепта.
+          example: 2
+        intro:
+          type: string
+          description: Короткое вступление.
+        image:
+          type: string
+          description: Путь к локальному SVG.
+          example: assets/recipes/pasta.svg
+        recipe_steps:
+          type: array
+          description: Шаги в порядке `step_no`.
+          items:
+            type: object
+            properties:
+              step_no:
+                type: integer
+              body:
+                type: string
+        recipe_ingredients:
+          type: array
+          description: Ингредиенты в порядке `position`.
+          items:
+            type: object
+            properties:
+              ingredient_name:
+                type: string
+              amount:
+                type: string
+              unit:
+                type: string
+              position:
+                type: integer
+        recipe_tags:
+          type: array
+          items:
+            type: object
+            properties:
+              tag_name:
+                type: string
+        recipe_categories:
+          type: array
+          items:
+            type: object
+            properties:
+              category_key:
+                type: string
+                enum:
+                  - protein
+                  - light
+                  - gentle
+        recipe_allergens:
+          type: array
+          items:
+            type: object
+            properties:
+              allergen_key:
+                type: string
+                enum:
+                  - gluten
+                  - nuts
+                  - milk
+                  - eggs
+                  - fish
+                  - soy
+        departments:
+          type: array
+          description: Отделы каталога в порядке sort_order.
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              title:
+                type: string
+              sort_order:
+                type: integer
+
+    DayPlan:
+      type: object
+      description: Один день недели с тремя слотами приёма пищи.
+      required:
+        - breakfast
+        - lunch
+        - dinner
+      properties:
+        breakfast:
+          type: string
+          nullable: true
+          description: Id рецепта на завтрак или null.
+          example: oatmeal
+        lunch:
+          type: string
+          nullable: true
+          description: Id рецепта на обед или null.
+          example: soup
+        dinner:
+          type: string
+          nullable: true
+          description: Id рецепта на ужин или null.
+          example: pasta
+
+    WeekPlan:
+      type: array
+      description: Недельный план ровно из 7 дней.
+      minItems: 7
+      maxItems: 7
+      items:
+        $ref: '#/components/schemas/DayPlan'
+
+    ShoppingItem:
+      type: object
+      description: Одна позиция собранного списка покупок.
+      required:
+        - key
+        - name
+        - dept
+        - source
+        - manualId
+        - amountText
+        - done
+      properties:
+        key:
+          type: string
+          description: |
+            Ключ позиции: `plan|отдел|название|единица` или `manual|id`.
+          example: 'plan|veg|Томаты|шт'
+        name:
+          type: string
+          description: Название ингредиента или ручной позиции.
+          example: Томаты
+        dept:
+          type: string
+          description: Ключ отдела покупок.
+          enum:
+            - veg
+            - meat
+            - dairy
+            - pantry
+            - spices
+            - frozen
+            - other
+          example: veg
+        source:
+          type: string
+          description: Источник позиции.
+          enum:
+            - из плана
+            - из рецепта
+            - вручную
+          example: из плана
+        manualId:
+          type: string
+          nullable: true
+          description: Id ручной позиции или null для ингредиента плана.
+        amountText:
+          type: string
+          description: |
+            Количество с единицей, например «5 шт», «по вкусу», «2 банки».
+          example: 5 шт
+        done:
+          type: boolean
+          description: true, если позиция отмечена как купленная.
+          example: false
+
+    ShoppingGroup:
+      type: object
+      description: Непустая группа покупок одного отдела.
+      required:
+        - key
+        - title
+        - items
+      properties:
+        key:
+          type: string
+          description: Ключ отдела.
+          example: veg
+        title:
+          type: string
+          description: Человекочитаемое название отдела.
+          example: Овощи и фрукты
+        items:
+          type: array
+          description: Позиции отдела в порядке дней плана, затем ручные позиции.
+          items:
+            $ref: '#/components/schemas/ShoppingItem'
+
+    Error:
+      type: object
+      description: Ошибка в формате PostgREST.
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Код ошибки PostgreSQL или PostgREST.
+          example: P0001
+        details:
+          type: string
+          nullable: true
+          description: Дополнительные детали, если есть.
+        hint:
+          type: string
+          nullable: true
+          description: Подсказка, если есть.
+        message:
+          type: string
+          description: Сообщение об ошибке.
+          example: Неизвестный слот приёма пищи
+
+    ApiSetPlanRequest:
+      type: object
+      description: Аргументы полной замены недельного плана.
+      required:
+        - p_days
+      properties:
+        p_days:
+          $ref: '#/components/schemas/WeekPlan'
+
+    ApiSetMealRequest:
+      type: object
+      description: Аргументы назначения или очистки одной ячейки.
+      required:
+        - p_day
+        - p_slot
+      properties:
+        p_day:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: Номер дня недели от 0 до 6.
+          example: 0
+        p_slot:
+          type: string
+          description: Слот приёма пищи.
+          enum:
+            - breakfast
+            - lunch
+            - dinner
+          example: breakfast
+        p_recipe_id:
+          type: string
+          nullable: true
+          description: |
+            Id рецепта из каталога. Неизвестный id или `null` очищает ячейку.
+            Аргумент не обязателен, по умолчанию `null`.
+          example: oatmeal
+
+    ApiAddManualRequest:
+      type: object
+      description: Аргументы добавления ручной позиции.
+      required:
+        - p_name
+      properties:
+        p_name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Название позиции.
+          example: Бумажные полотенца
+        p_amount:
+          type: string
+          maxLength: 40
+          default: ''
+          description: Количество произвольным текстом, без округления.
+          example: 2 банки
+        p_dept:
+          type: string
+          default: other
+          description: Отдел; неизвестное значение заменяется на other.
+          enum:
+            - veg
+            - meat
+            - dairy
+            - pantry
+            - spices
+            - frozen
+            - other
+          example: other
+        p_source:
+          type: string
+          default: вручную
+          description: Источник позиции.
+          enum:
+            - вручную
+            - из рецепта
+          example: вручную
+
+    ApiRemoveManualRequest:
+      type: object
+      description: Аргументы удаления ручной позиции.
+      required:
+        - p_id
+      properties:
+        p_id:
+          type: string
+          description: Id позиции, возвращённый api_add_manual.
+          example: m1730553600000123
+
+    ApiSetCheckedRequest:
+      type: object
+      description: Аргументы постановки или снятия отметки.
+      required:
+        - p_key
+      properties:
+        p_key:
+          type: string
+          description: Ключ позиции плана или ручной позиции.
+          example: 'plan|veg|Томаты|шт'
+        p_done:
+          type: boolean
+          default: true
+          description: true — отметить как купленное, false — снять отметку.
+
+    ApiUnsetCheckedRequest:
+      type: object
+      description: Аргументы полного удаления отметки.
+      required:
+        - p_key
+      properties:
+        p_key:
+          type: string
+          description: Ключ позиции плана или ручной позиции.
+          example: 'plan|veg|Томаты|шт'
+
+    ShoppingParseAmountRequest:
+      type: object
+      description: Аргументы разбора количества.
+      required:
+        - p_amount
+      properties:
+        p_amount:
+          type: string
+          description: Текстовое количество ингредиента.
+          example: 0,5
+
+    ShoppingRoundRequest:
+      type: object
+      description: Аргументы округления количества.
+      required:
+        - p_value
+        - p_unit
+      properties:
+        p_value:
+          type: number
+          description: Значение до округления.
+          example: 1.3
+        p_unit:
+          type: string
+          description: Единица измерения, определяющая правило округления.
+          example: ч. л.
+
+    FormatShoppingAmountRequest:
+      type: object
+      description: Аргументы форматирования числа.
+      required:
+        - p_value
+      properties:
+        p_value:
+          type: number
+          description: Число, которое нужно вывести в тексте покупки.
+          example: 0.5

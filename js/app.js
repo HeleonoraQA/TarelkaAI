@@ -15,6 +15,7 @@
   'use strict';
 
   var data = window.TARELKA;
+  var api = window.TarelkaApi;
 
   var STORAGE_KEY = 'tarelka:state';
   var CORRUPT_KEY = 'tarelka:state:corrupt';
@@ -93,6 +94,14 @@
   var activeRecipe = null;
   var toastTimer = null;
   var discoverFilters = { query: '', fast: false, meal: null };
+
+  // Серверные данные и режим доступа. tarelka:state остаётся резервной копией.
+  var catalog = null;
+  var serverShopping = null;
+  var session = null;
+  var serverReady = false;
+  var authMode = 'signin';
+  var authBusy = false;
 
   function emptyDay() {
     return { breakfast: null, lunch: null, dinner: null };
@@ -356,6 +365,134 @@
   }
 
   /* ---------------------------------------------------------
+     Сервер, сессия и права на изменение
+     --------------------------------------------------------- */
+
+  function allRecipes() {
+    return catalog && catalog.recipes ? catalog.recipes : data.recipes;
+  }
+
+  function allDepartments() {
+    return catalog && catalog.departments ? catalog.departments : data.departments;
+  }
+
+  function deptFor(name) {
+    if (catalog && catalog.ingredientCategories && catalog.ingredientCategories[name]) {
+      return catalog.ingredientCategories[name];
+    }
+    return data.ingredientCategories[name] || 'other';
+  }
+
+  function rebuildRecipeIndex() {
+    recipesById = {};
+    allRecipes().forEach(function (recipe) {
+      recipesById[recipe.id] = recipe;
+    });
+  }
+
+  function canWrite() {
+    return !!(api && serverReady && session && api.isOnline());
+  }
+
+  function offlineMessage() {
+    return 'Нет связи. Показываем сохранённое, изменения доступны после подключения.';
+  }
+
+  function noSessionMessage() {
+    return 'Войдите, чтобы вносить изменения. Сохранённое доступно для просмотра.';
+  }
+
+  function requireWrite() {
+    if (canWrite()) return true;
+
+    if (!api || !api.isOnline()) {
+      toast(offlineMessage());
+    } else if (!session) {
+      toast(noSessionMessage());
+      showScreen('auth', { track: false });
+    } else {
+      toast('Сервер недоступен. Сохранённое доступно только для просмотра.');
+    }
+
+    return false;
+  }
+
+  function apiMessage(error) {
+    if (!error) return 'Не удалось выполнить запрос. Попробуйте ещё раз.';
+    return error.message || 'Не удалось выполнить запрос. Попробуйте ещё раз.';
+  }
+
+  function handleApiError(error) {
+    if (!error || error.kind !== 'auth') return;
+
+    // Сессия больше не действует: показываем вход и сохранённое как кэш.
+    session = null;
+    serverReady = false;
+    serverShopping = null;
+    api.clearSession();
+    renderAccess();
+    showScreen('auth', { track: false });
+  }
+
+  function revokeServerData() {
+    session = null;
+    serverReady = false;
+    serverShopping = null;
+    catalog = null;
+    rebuildRecipeIndex();
+    renderAccess();
+  }
+
+  function renderAccess() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-account-block]'), function (block) {
+      block.hidden = !session;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-account-card]'), function (block) {
+      block.hidden = !session;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-account-email]'), function (element) {
+      element.textContent = session && session.user ? session.user.email || '—' : '—';
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sign-out]'), function (button) {
+      button.disabled = !session;
+    });
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-regenerate], [data-onboarding-done], [data-prefs-form] button[type="submit"], [data-add-form] button[type="submit"]'),
+      function (button) {
+        button.disabled = !canWrite();
+      }
+    );
+
+    var banner = document.querySelector('[data-status-banner]');
+    var text = document.querySelector('[data-status-text]');
+    var action = document.querySelector('[data-status-action]');
+
+    if (banner && text) {
+      var message = '';
+
+      if (!api || !api.isOnline()) {
+        message = offlineMessage();
+      } else if (!session) {
+        message = noSessionMessage();
+      } else if (!serverReady) {
+        message = 'Сервер недоступен. Показываем сохранённое, изменения пока недоступны.';
+      }
+
+      banner.hidden = !message;
+      text.textContent = message;
+
+      if (action) {
+        action.hidden = !session || api.isOnline();
+        action.textContent = 'Повторить';
+      }
+    }
+
+    renderPlan();
+    renderShopping();
+    renderSettings();
+  }
+
+  /* ---------------------------------------------------------
      Навигация
      --------------------------------------------------------- */
 
@@ -381,7 +518,10 @@
     document.body.dataset.screen = name;
     document.body.classList.toggle('is-locked', name === 'discover');
 
-    if (name === 'more') renderSettings();
+    if (name === 'more') {
+      renderSettings();
+      renderAccess();
+    }
     if (name === 'prefs') {
       applyPrefsToForm();
       renderPrefsConflict();
@@ -469,6 +609,13 @@
   }
 
   function applyProfileToForm() {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="diet"]'), function (input) {
+      input.checked = false;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="people"]'), function (input) {
+      input.checked = false;
+    });
+
     var dietInput = document.getElementById(DIET_IDS[state.profile.diet] || DIET_IDS.none);
     if (dietInput) dietInput.checked = true;
 
@@ -501,6 +648,18 @@
     };
   }
 
+  function saveProfileOnServer(profile) {
+    if (!canWrite()) return Promise.resolve(false);
+
+    return api.saveProfile(profile, session.user.id).then(function () {
+      return true;
+    }).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+      return false;
+    });
+  }
+
   function finishOnboarding() {
     var form = readProfileForm();
     var firstRun = !state.profile.onboarded;
@@ -515,6 +674,7 @@
     if (firstRun) generatePlan();
 
     saveState();
+    saveProfileOnServer(state.profile);
 
     renderPlan();
     renderShopping();
@@ -529,6 +689,7 @@
 
   function slotMarkup(day, dayIndex, meal, recipeId) {
     var recipe = recipeId ? recipesById[recipeId] : null;
+    var locked = canWrite() ? '' : ' disabled';
     var body;
 
     if (recipe) {
@@ -541,13 +702,13 @@
               recipe.time + ' мин · ' + state.profile.people + ' порц.</span>' +
           '</span>' +
         '</button>' +
-        '<button class="icon-btn" type="button" data-remove-slot="' + dayIndex + '" data-meal="' + meal.key + '" ' +
+        '<button class="icon-btn" type="button" data-remove-slot="' + dayIndex + '" data-meal="' + meal.key + '"' + locked + ' ' +
           'aria-label="Убрать «' + esc(recipe.title) + '» из плана">' +
           icon('x') +
         '</button>' +
       '</div>';
     } else {
-      body = '<button class="slot__empty" type="button" data-open-discover data-day-index="' + dayIndex + '" data-meal="' + meal.key + '" ' +
+      body = '<button class="slot__empty" type="button" data-open-discover data-day-index="' + dayIndex + '" data-meal="' + meal.key + '"' + locked + ' ' +
         'aria-label="Добавить рецепт: ' + day.name + ', ' + meal.label.toLowerCase() + '">' +
         icon('plus') + '<span>Добавить</span>' +
       '</button>';
@@ -606,13 +767,43 @@
     return null;
   }
 
+  function writeMeal(dayIndex, meal, recipeId) {
+    if (!canWrite()) return false;
+
+    return api.setMeal(dayIndex, meal, recipeId).then(function () {
+      return true;
+    }).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+      return false;
+    });
+  }
+
   function assignRecipe(recipeId, slot) {
     if (!slot || !recipesById[recipeId] || !mealByKey(slot.meal)) return false;
 
+    var previous = state.plan[slot.dayIndex][slot.meal];
     state.plan[slot.dayIndex][slot.meal] = recipeId;
     saveState();
     renderPlan();
     renderShopping();
+
+    if (!canWrite()) {
+      requireWrite();
+      state.plan[slot.dayIndex][slot.meal] = previous;
+      saveState();
+      renderPlan();
+      renderShopping();
+      return false;
+    }
+
+    writeMeal(slot.dayIndex, slot.meal, recipeId).then(function (ok) {
+      if (ok) return;
+      state.plan[slot.dayIndex][slot.meal] = previous;
+      saveState();
+      renderPlan();
+      renderShopping();
+    });
     return true;
   }
 
@@ -620,10 +811,28 @@
     var planDay = state.plan[dayIndex];
     if (!planDay || !mealByKey(meal) || !planDay[meal]) return;
 
+    var previous = planDay[meal];
     planDay[meal] = null;
     saveState();
     renderPlan();
     renderShopping();
+
+    if (!canWrite()) {
+      requireWrite();
+      planDay[meal] = previous;
+      saveState();
+      renderPlan();
+      renderShopping();
+      return;
+    }
+
+    writeMeal(dayIndex, meal, null).then(function (ok) {
+      if (ok) return;
+      planDay[meal] = previous;
+      saveState();
+      renderPlan();
+      renderShopping();
+    });
 
     var button = document.querySelector(
       '.slot__empty[data-day-index="' + dayIndex + '"][data-meal="' + meal + '"]'
@@ -638,21 +847,22 @@
 
   function recipeActionBar(recipe) {
     var secondary = '';
+    var locked = canWrite() ? '' : ' disabled';
 
     if (pendingSlot) {
-      secondary = '<button class="btn btn--ghost" type="button" data-assign-recipe="' + esc(recipe.id) + '">' +
+      secondary = '<button class="btn btn--ghost" type="button" data-assign-recipe="' + esc(recipe.id) + '"' + locked + '>' +
         'Добавить сюда' +
       '</button>';
     } else if (findRecipeSlot(recipe.id)) {
-      secondary = '<button class="btn btn--ghost" type="button" data-remove-recipe="' + esc(recipe.id) + '">' +
+      secondary = '<button class="btn btn--ghost" type="button" data-remove-recipe="' + esc(recipe.id) + '"' + locked + '>' +
         'Убрать из плана</button>';
     } else {
-      secondary = '<button class="btn btn--ghost" type="button" data-add-to-plan="' + esc(recipe.id) + '">' +
+      secondary = '<button class="btn btn--ghost" type="button" data-add-to-plan="' + esc(recipe.id) + '"' + locked + '>' +
         'Добавить в план</button>';
     }
 
     return '<div class="action-bar">' +
-      '<button class="btn btn--primary" type="button" data-add-shopping="' + esc(recipe.id) + '">' +
+      '<button class="btn btn--primary" type="button" data-add-shopping="' + esc(recipe.id) + '"' + locked + '>' +
         'Добавить в список</button>' +
       secondary +
     '</div>';
@@ -733,6 +943,28 @@
      --------------------------------------------------------- */
 
   function buildShopping() {
+    if (serverShopping) {
+      return serverShopping.map(function (group) {
+        return {
+          key: group.key,
+          title: group.title,
+          items: (group.items || []).map(function (item) {
+            return {
+              key: item.key,
+              name: item.name,
+              dept: item.dept,
+              source: item.source,
+              manualId: item.manualId || null,
+              amountText: item.amountText || '',
+              done: item.done === true
+            };
+          })
+        };
+      }).filter(function (group) {
+        return group.items.length > 0;
+      });
+    }
+
     var people = state.profile.people;
     var entries = {};
     var order = [];
@@ -745,7 +977,7 @@
         var factor = people / recipe.servings;
 
         recipe.ingredients.forEach(function (ingredient) {
-          var dept = data.ingredientCategories[ingredient.name] || 'other';
+          var dept = deptFor(ingredient.name);
           var key = 'plan|' + dept + '|' + ingredient.name + '|' + ingredient.unit;
           var entry = entries[key];
 
@@ -792,7 +1024,7 @@
       };
     });
 
-    var groups = data.departments.map(function (dept) {
+    var groups = allDepartments().map(function (dept) {
       return { key: dept.key, title: dept.title, items: [] };
     });
     var groupsByKey = {};
@@ -875,14 +1107,15 @@
       var items = group.items.map(function (item, index) {
         var id = 'item-' + group.key + '-' + index;
         var remove = item.manualId
-          ? '<button class="icon-btn item__remove" type="button" data-remove-manual="' + esc(item.manualId) + '" ' +
+          ? '<button class="icon-btn item__remove" type="button" data-remove-manual="' + esc(item.manualId) + '"' +
+              (canWrite() ? '' : ' disabled') + ' ' +
               'aria-label="Удалить «' + esc(item.name) + '» из списка">' + icon('x') + '</button>'
           : '';
 
         return '<li class="item">' +
           '<label class="item__check">' +
             '<input class="item__checkbox" type="checkbox" id="' + id + '" data-key="' + esc(item.key) + '"' +
-              (item.done ? ' checked' : '') + '>' +
+              (item.done ? ' checked' : '') + (canWrite() ? '' : ' disabled') + '>' +
             '<span class="visually-hidden">Купить</span>' +
           '</label>' +
           '<span class="item__text">' +
@@ -912,23 +1145,60 @@
     updateShoppingProgress();
   }
 
+  function writeManual(name, amount, dept, source) {
+    if (!canWrite()) return Promise.resolve(false);
+
+    return api.addManual(name, amount, dept, source).then(function (id) {
+      return typeof id === 'string' && id ? id : false;
+    }).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+      return false;
+    });
+  }
+
   function addManualItem(name) {
     var clean = name.trim().replace(/\s+/g, ' ').slice(0, 80);
     if (!clean) return false;
 
+    if (!canWrite()) {
+      requireWrite();
+      return false;
+    }
+
+    var draftId = 'm' + Date.now() + Math.floor(Math.random() * 1000);
     state.manual.push({
-      id: 'm' + Date.now() + Math.floor(Math.random() * 1000),
+      id: draftId,
       name: clean,
       amount: '',
-      dept: data.ingredientCategories[clean] || 'other',
+      dept: deptFor(clean),
       source: 'вручную'
     });
     saveState();
     renderShopping();
+
+    writeManual(clean, '', deptFor(clean), 'вручную').then(function (id) {
+      if (!id) {
+        state.manual = state.manual.filter(function (item) {
+          return item.id !== draftId;
+        });
+        saveState();
+        renderShopping();
+        return;
+      }
+
+      state.manual.forEach(function (item) {
+        if (item.id === draftId) item.id = id;
+      });
+      saveState();
+      renderShopping();
+    });
     return true;
   }
 
   function addRecipeToShopping(recipe) {
+    if (!requireWrite()) return;
+
     var existingNames = {};
     buildShopping().forEach(function (group) {
       group.items.forEach(function (item) {
@@ -936,34 +1206,62 @@
       });
     });
 
-    var added = 0;
+    var drafts = [];
 
     recipe.ingredients.forEach(function (ingredient) {
       if (existingNames[ingredient.name]) return;
 
       existingNames[ingredient.name] = true;
-      state.manual.push({
-        id: 'm' + Date.now() + Math.floor(Math.random() * 1000) + added,
+      var draftId = 'm' + Date.now() + Math.floor(Math.random() * 1000) + drafts.length;
+      var item = {
+        id: draftId,
         name: ingredient.name,
         amount: amountForIngredient(recipe, ingredient),
-        dept: data.ingredientCategories[ingredient.name] || 'other',
+        dept: deptFor(ingredient.name),
         source: 'из рецепта'
-      });
-      added += 1;
+      };
+      drafts.push(item);
+      state.manual.push(item);
     });
 
-    if (!added) {
+    if (!drafts.length) {
       toast('Эти продукты уже есть в списке');
       return;
     }
 
     saveState();
     renderShopping();
-    toast('Добавили в список: ' + added + ' ' + plural(added, 'позицию', 'позиции', 'позиций'));
+
+    var chain = Promise.resolve(true);
+    drafts.forEach(function (draft) {
+      chain = chain.then(function (previousOk) {
+        return writeManual(draft.name, draft.amount, draft.dept, draft.source).then(function (id) {
+          if (!id) return false;
+          state.manual.forEach(function (item) {
+            if (item.id === draft.id) item.id = id;
+          });
+          return previousOk;
+        });
+      });
+    });
+
+    chain.then(function (ok) {
+      saveState();
+      renderShopping();
+      if (ok) {
+        toast('Добавили в список: ' + drafts.length + ' ' +
+          plural(drafts.length, 'позицию', 'позиции', 'позиций'));
+      }
+    });
   }
 
   function removeManualItem(id) {
+    if (!requireWrite()) return;
+
     var before = state.manual.length;
+    var removed = state.manual.filter(function (item) {
+      return item.id === id;
+    })[0];
     state.manual = state.manual.filter(function (item) {
       return item.id !== id;
     });
@@ -973,7 +1271,16 @@
     delete state.checked['manual|' + id];
     saveState();
     renderShopping();
-    toast('Убрали из списка');
+
+    api.removeManual(id).then(function () {
+      toast('Убрали из списка');
+    }).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+      if (removed) state.manual.push(removed);
+      saveState();
+      renderShopping();
+    });
   }
 
   /* ---------------------------------------------------------
@@ -997,7 +1304,7 @@
   function filteredRecipes() {
     var query = discoverFilters.query.trim().toLowerCase();
 
-    return data.recipes.filter(function (recipe) {
+    return allRecipes().filter(function (recipe) {
       if (!isRecipeAllowed(recipe)) return false;
       if (discoverFilters.fast && recipe.time > 20) return false;
 
@@ -1034,7 +1341,8 @@
               recipe.time + ' мин · ' + servingsText(state.profile.people) + '</span>' +
           '</span>' +
         '</button>' +
-        '<button class="btn btn--soft btn--sm pick__add" type="button" data-add-pick="' + esc(recipe.id) + '" ' +
+        '<button class="btn btn--soft btn--sm pick__add" type="button" data-add-pick="' + esc(recipe.id) + '"' +
+          (canWrite() ? '' : ' disabled') + ' ' +
           'aria-label="Добавить «' + esc(recipe.title) + '»">' + icon('plus', ' icon--sm') + '</button>' +
       '</li>';
     }).join('');
@@ -1095,7 +1403,7 @@
   }
 
   function generatePlan() {
-    var allowed = data.recipes.filter(isRecipeAllowed);
+    var allowed = allRecipes().filter(isRecipeAllowed);
 
     state.plan = DAY_NAMES.map(function () {
       var day = {};
@@ -1128,10 +1436,15 @@
   }
 
   function regeneratePlan() {
+    if (!requireWrite()) return;
     if (!window.confirm('Собрать план заново? Текущие блюда заменятся.')) return;
 
     generatePlan();
     saveState();
+    api.setPlan(state.plan).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+    });
     renderPlan();
     renderShopping();
     renderPrefsConflict();
@@ -1172,6 +1485,13 @@
   }
 
   function applyPrefsToForm() {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="pref-diet"]'), function (input) {
+      input.checked = false;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="pref-people"]'), function (input) {
+      input.checked = false;
+    });
+
     var dietInput = document.querySelector(
       'input[name="pref-diet"][value="' + state.profile.diet + '"]'
     );
@@ -1228,6 +1548,8 @@
   }
 
   function savePrefs() {
+    if (!requireWrite()) return;
+
     var form = readPrefsForm();
 
     state.profile.diet = form.diet;
@@ -1235,7 +1557,9 @@
     state.profile.people = form.people;
     state.profile.onboarded = true;
 
+    if (!requireWrite()) return;
     saveState();
+    saveProfileOnServer(state.profile);
 
     renderPlan();
     renderShopping();
@@ -1280,6 +1604,11 @@
   }
 
   function resetAllData() {
+    if (!api) {
+      toast('Подключение к серверу не настроено');
+      return;
+    }
+
     var panel = document.querySelector('[data-reset-confirm]');
     var buttons = panel
       ? Array.prototype.slice.call(panel.querySelectorAll('button'))
@@ -1289,6 +1618,8 @@
     buttons.forEach(function (button) {
       button.disabled = true;
     });
+
+    api.signOut().catch(function () { return null; });
 
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -1301,11 +1632,313 @@
       return;
     }
 
-    toast('Данные сброшены');
+    toast('Данные на устройстве сброшены');
 
     window.setTimeout(function () {
       window.location.reload();
     }, 900);
+  }
+
+  /* ---------------------------------------------------------
+     Вход и регистрация
+     --------------------------------------------------------- */
+
+  function showAuthMessage(message, isError) {
+    var element = document.querySelector('[data-auth-message]');
+    if (!element) return;
+
+    element.textContent = message || '';
+    element.hidden = !message;
+    element.classList.toggle('is-error', isError === true);
+  }
+
+  function showFieldError(field, message) {
+    var element = document.querySelector(field === 'password'
+      ? '[data-auth-password-error]'
+      : '[data-auth-email-error]');
+    if (!element) return;
+
+    element.textContent = message || '';
+    element.hidden = !message;
+  }
+
+  function renderAuthMode() {
+    var submit = document.querySelector('[data-auth-submit]');
+    var modeButton = document.querySelector('[data-auth-mode]');
+    var question = document.querySelector('[data-auth-question]');
+    var password = document.getElementById('auth-password');
+
+    if (submit) submit.textContent = authMode === 'signup' ? 'Создать аккаунт' : 'Войти';
+    if (modeButton) {
+      modeButton.textContent = authMode === 'signup' ? 'Уже есть аккаунт? Войти' : 'Создать аккаунт';
+      modeButton.setAttribute('aria-pressed', authMode === 'signup' ? 'true' : 'false');
+    }
+    if (question) question.textContent = authMode === 'signup' ? 'Уже есть аккаунт?' : 'Нет аккаунта?';
+    if (password) password.autocomplete = authMode === 'signup' ? 'new-password' : 'current-password';
+
+    showFieldError('email', '');
+    showFieldError('password', '');
+    showAuthMessage('', false);
+  }
+
+  function setAuthBusy(busy) {
+    authBusy = busy;
+
+    var submit = document.querySelector('[data-auth-submit]');
+    var modeButton = document.querySelector('[data-auth-mode]');
+    var email = document.getElementById('auth-email');
+    var password = document.getElementById('auth-password');
+
+    if (submit) {
+      submit.disabled = busy;
+      submit.textContent = busy ? 'Отправляем…' : authMode === 'signup' ? 'Создать аккаунт' : 'Войти';
+    }
+    if (modeButton) modeButton.disabled = busy;
+    if (email) email.disabled = busy;
+    if (password) password.disabled = busy;
+  }
+
+  function afterSignIn(nextSession) {
+    session = nextSession;
+    showAuthMessage('', false);
+    setAuthBusy(false);
+    renderAccess();
+
+    initializeSessionData().then(function () {
+      toast('С возвращением');
+    });
+  }
+
+  function submitAuth(event) {
+    event.preventDefault();
+    if (authBusy) return;
+    if (!api) {
+      showAuthMessage('Подключение к серверу не настроено', true);
+      return;
+    }
+    if (!api.isOnline()) {
+      showAuthMessage(offlineMessage(), true);
+      return;
+    }
+
+    var emailInput = document.getElementById('auth-email');
+    var passwordInput = document.getElementById('auth-password');
+    var email = emailInput ? emailInput.value.trim() : '';
+    var password = passwordInput ? passwordInput.value : '';
+    var valid = true;
+
+    if (!email || email.indexOf('@') === -1) {
+      showFieldError('email', 'Укажите почту');
+      valid = false;
+    } else {
+      showFieldError('email', '');
+    }
+
+    if (password.length < 6) {
+      showFieldError('password', 'Пароль должен быть не короче 6 символов');
+      valid = false;
+    } else {
+      showFieldError('password', '');
+    }
+
+    if (!valid) return;
+
+    showAuthMessage('', false);
+    setAuthBusy(true);
+
+    var call = authMode === 'signup' ? api.signUp(email, password) : api.signIn(email, password);
+
+    call.then(function (result) {
+      if (result && result.needsConfirmation) {
+        setAuthBusy(false);
+        showAuthMessage('Регистрация требует подтверждения почты. Сообщите администратору.', true);
+        return;
+      }
+
+      afterSignIn(result);
+    }).catch(function (error) {
+      handleApiError(error);
+      setAuthBusy(false);
+
+      var message = apiMessage(error);
+      if (error && error.kind === 'validation') {
+        message = 'Не удалось войти. Проверьте почту и пароль.';
+      }
+      showAuthMessage(message, true);
+    });
+  }
+
+  function signOut() {
+    if (!api) return;
+
+    api.signOut().then(function () {
+      revokeServerData();
+      state = loadState();
+      renderAccess();
+      goTo('auth');
+      toast('Вы вышли из аккаунта');
+    }).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+    });
+  }
+
+  function refreshStatus() {
+    if (!api || !session || !api.isOnline()) {
+      renderAccess();
+      return;
+    }
+
+    loadServerData().then(function () {
+      toast('Соединение восстановлено');
+    });
+  }
+
+  function loadCatalog() {
+    if (!api) return Promise.resolve(false);
+
+    return api.getCatalog().then(function (value) {
+      catalog = value;
+      rebuildRecipeIndex();
+      if (activeRecipe && recipesById[activeRecipe.id]) {
+        activeRecipe = recipesById[activeRecipe.id];
+        renderRecipe(activeRecipe);
+      } else {
+        renderRecipe(allRecipes()[0]);
+      }
+      renderPicks();
+      renderPlan();
+      renderShopping();
+      return true;
+    }).catch(function (error) {
+      handleApiError(error);
+      return false;
+    });
+  }
+
+  function applyServerState(profile, plan, shopping) {
+    if (profile) {
+      state.profile.onboarded = profile.onboarded === true;
+      state.profile.diet = profile.diet || 'none';
+      state.profile.allergies = Array.isArray(profile.allergies) ? profile.allergies : [];
+      state.profile.people = Number(profile.people) || 4;
+    }
+
+    if (Array.isArray(plan) && plan.length === 7) {
+      state.plan = plan.map(normalizeDay);
+    }
+
+    if (Array.isArray(shopping)) {
+      serverShopping = shopping;
+      (shopping || []).forEach(function (group) {
+        (group.items || []).forEach(function (item) {
+          if (item.done === true) state.checked[item.key] = true;
+          else delete state.checked[item.key];
+        });
+      });
+    }
+
+    applyProfileToForm();
+    applyPrefsToForm();
+    saveState();
+    renderAccess();
+  }
+
+  function loadServerData() {
+    if (!api || !session || !api.isOnline()) {
+      serverReady = false;
+      renderAccess();
+      return Promise.resolve(false);
+    }
+
+    return Promise.all([
+      api.getProfile(session.user.id),
+      api.getPlan(),
+      api.getShopping()
+    ]).then(function (results) {
+      serverReady = true;
+      applyServerState(results[0], results[1], results[2]);
+      return true;
+    }).catch(function (error) {
+      serverReady = false;
+      handleApiError(error);
+      renderAccess();
+      if (error && error.kind !== 'auth') toast(apiMessage(error));
+      return false;
+    });
+  }
+
+  function importLocalState(alreadyImported) {
+    // Импорт первого входа не должен ждать serverReady: этот флаг означает только
+    // успешную загрузку профиля, плана и покупок, которые ещё не загружены.
+    if (!api || !session || !api.isOnline()) return Promise.resolve(false);
+
+    var check = typeof alreadyImported === 'boolean'
+      ? Promise.resolve(alreadyImported)
+      : api.hasImport(session.user.id);
+
+    return check.then(function (already) {
+      if (already) return false;
+
+      return api.saveProfile(state.profile, session.user.id)
+        .then(function () { return api.setPlan(state.plan); })
+        .then(function () { return api.markImport(session.user.id, 'localStorage v1'); })
+        .then(function () {
+          return loadServerData().then(function () {
+            toast('Сохранённое на устройстве перенесено в аккаунт');
+            return true;
+          });
+        });
+    }).catch(function (error) {
+      handleApiError(error);
+      toast(apiMessage(error));
+      return false;
+    });
+  }
+
+  function initializeSessionData() {
+    if (!api || !session) return Promise.resolve(false);
+
+    return loadCatalog().then(function () {
+      if (!session || !api.isOnline()) return false;
+
+      // Отметка импорта защищает серверные данные от повторной загрузки кэша.
+      return api.hasImport(session.user.id).then(function (already) {
+        if (!session) return false;
+        if (already) return loadServerData();
+        return importLocalState(already);
+      });
+    }).then(function () {
+      if (!session) return false;
+      if (!api.isOnline()) return false;
+      goTo(state.profile.onboarded ? 'home' : 'onboarding');
+      return true;
+    });
+  }
+
+  function startApp() {
+    if (!api || !api.isConfigured()) {
+      toast('Подключение к серверу не настроено');
+      renderAccess();
+      return;
+    }
+
+    session = api.getSession();
+    renderAuthMode();
+    renderAccess();
+
+    if (!session) {
+      goTo('auth');
+      return;
+    }
+
+    if (!api.isOnline()) {
+      toast(offlineMessage());
+      goTo(state.profile.onboarded ? 'home' : 'onboarding');
+      return;
+    }
+
+    initializeSessionData();
   }
 
   /* ---------------------------------------------------------
@@ -1316,9 +1949,32 @@
     var target = event.target;
     if (!(target instanceof Element)) return;
 
+    if (target.closest('[data-auth-mode]')) {
+      event.preventDefault();
+      authMode = authMode === 'signup' ? 'signin' : 'signup';
+      renderAuthMode();
+      return;
+    }
+
+    if (target.closest('[data-sign-out]')) {
+      event.preventDefault();
+      signOut();
+      return;
+    }
+
+    if (target.closest('[data-status-action]')) {
+      event.preventDefault();
+      refreshStatus();
+      return;
+    }
+
     var nav = target.closest('[data-nav]');
     if (nav) {
       event.preventDefault();
+      if (current === 'auth' && nav.dataset.nav !== 'more') {
+        showAuthMessage('Сначала войдите в аккаунт', false);
+        return;
+      }
       goTo(nav.dataset.nav);
       return;
     }
@@ -1504,7 +2160,14 @@
       var box = target.closest('.item__checkbox');
       var key = box.dataset.key;
 
-      if (box.checked) {
+      if (!canWrite()) {
+        box.checked = !box.checked;
+        requireWrite();
+        return;
+      }
+
+      var done = box.checked;
+      if (done) {
         state.checked[key] = true;
       } else {
         delete state.checked[key];
@@ -1512,12 +2175,26 @@
 
       saveState();
       updateShoppingProgress();
+
+      var call = done ? api.setChecked(key, true) : api.unsetChecked(key);
+      call.catch(function (error) {
+        handleApiError(error);
+        toast(apiMessage(error));
+        if (done) {
+          delete state.checked[key];
+        } else {
+          state.checked[key] = true;
+        }
+        saveState();
+        renderShopping();
+      });
       return;
     }
 
     if (target.matches('input[name="recipe-servings"]') && activeRecipe) {
       state.profile.people = Number(target.value);
       saveState();
+      saveProfileOnServer(state.profile);
 
       renderRecipe(activeRecipe);
       renderPlan();
@@ -1554,6 +2231,21 @@
       }
     });
   }
+
+  var authForm = document.querySelector('[data-auth-form]');
+  if (authForm) {
+    authForm.addEventListener('submit', submitAuth);
+  }
+
+  window.addEventListener('online', function () {
+    renderAccess();
+    if (session) loadServerData();
+  });
+
+  window.addEventListener('offline', function () {
+    serverReady = false;
+    renderAccess();
+  });
 
   var prefsForm = document.querySelector('[data-prefs-form]');
   if (prefsForm) {
@@ -1634,22 +2326,18 @@
      Старт
      --------------------------------------------------------- */
 
-  applyProfileToForm();
   renderVersion();
   renderSettings();
   renderPlan();
   renderShopping();
   renderPicks();
-  renderRecipe(data.recipes[0]);
+  renderRecipe(allRecipes()[0]);
   showStep(0);
-
-  if (state.profile.onboarded) {
-    showScreen('home', { track: false, focus: false });
-  } else {
-    showScreen('onboarding', { track: false, focus: false });
-  }
+  renderAuthMode();
 
   if (loadProblem) {
     toast('Не удалось прочитать сохранённые данные. Начали с чистого листа');
   }
+
+  startApp();
 })();

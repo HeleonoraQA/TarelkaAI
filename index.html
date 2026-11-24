@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tarelka — планировщик питания</title>
-  <meta name="description" content="Недельный план блюд, рецепты и список покупок. Данные хранятся только на устройстве.">
+  <meta name="description" content="Недельный план блюд, рецепты и список покупок. Работает на устройстве и синхронизируется с аккаунтом.">
   <meta name="theme-color" content="#B8432E">
   <meta name="color-scheme" content="light">
   <link rel="manifest" href="manifest.json">
@@ -68,6 +68,52 @@
       <!-- =====================================================
            1. Онбординг: категория питания -> аллергии -> количество человек
            ===================================================== -->
+      <!-- =====================================================
+           0. Вход/регистрация: доступ к серверным данным
+           ===================================================== -->
+      <section class="screen screen--auth" data-screen="auth" hidden>
+        <div class="auth">
+          <header class="auth__header">
+            <h1 class="auth__title">Tarelka</h1>
+            <p class="auth__subtitle">Чтобы план и покупки сохранялись, войдите в аккаунт.</p>
+          </header>
+
+          <form class="auth__form" data-auth-form novalidate>
+            <div class="field-group">
+              <label class="field__label" for="auth-email">Почта</label>
+              <input class="field__input" id="auth-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" required aria-describedby="auth-email-error">
+              <p class="field__error" id="auth-email-error" data-auth-email-error hidden></p>
+            </div>
+
+            <div class="field-group">
+              <label class="field__label" for="auth-password">Пароль</label>
+              <input class="field__input" id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="128" required aria-describedby="auth-password-error">
+              <p class="field__error" id="auth-password-error" data-auth-password-error hidden></p>
+            </div>
+
+            <p class="auth__message" data-auth-message role="status" aria-live="polite" hidden></p>
+
+            <button class="btn btn--primary btn--block" type="submit" data-auth-submit>Войти</button>
+          </form>
+
+          <div class="auth__footer">
+            <p class="auth__switch">
+              <span data-auth-question>Нет аккаунта?</span>
+              <button class="btn btn--text btn--sm" type="button" data-auth-mode aria-pressed="false">Создать аккаунт</button>
+            </p>
+            <p class="hint">Без сети можно только смотреть сохранённое. Изменения появятся после подключения.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           B2: офлайн read-only
+           ===================================================== -->
+      <div class="status-banner" data-status-banner role="status" aria-live="polite" hidden>
+        <p data-status-text></p>
+        <button class="btn btn--text btn--sm" type="button" data-status-action hidden></button>
+      </div>
+
       <section class="screen screen--onboarding" data-screen="onboarding">
         <h1 class="visually-hidden">Настройка предпочтений</h1>
         <div class="onboarding">
@@ -316,10 +362,18 @@
             <button class="settings__row" type="button" data-open-screen="data">
               <span class="settings__text">
                 <span class="settings__label">Данные</span>
-                <span class="settings__meta">Хранятся только на этом устройстве</span>
+                <span class="settings__meta">Аккаунт, кэш и сброс</span>
               </span>
               <svg class="icon settings__chevron" aria-hidden="true" focusable="false"><use href="#icon-chevron"></use></svg>
             </button>
+
+            <div class="settings__account" data-account-block hidden>
+              <div class="settings__text">
+                <span class="settings__label">Аккаунт</span>
+                <span class="settings__meta" data-account-email>—</span>
+              </div>
+              <button class="btn btn--ghost btn--sm" type="button" data-sign-out>Выйти</button>
+            </div>
 
             <button class="settings__row" type="button" data-open-screen="about">
               <span class="settings__text">
@@ -423,18 +477,24 @@
         </header>
 
         <div class="content content--narrow">
-          <p class="notice notice--soft">План, покупки и настройки хранятся только на этом устройстве. Мы не отправляем их на сервер.</p>
+          <p class="notice notice--soft">План, покупки и настройки хранятся в вашем аккаунте. На этом устройстве остаётся резервная копия, чтобы без сети можно было смотреть сохранённое.</p>
+
+          <div class="account-card" data-account-card hidden>
+            <p class="account-card__label">Аккаунт</p>
+            <p class="account-card__email" data-account-email>—</p>
+            <button class="btn btn--ghost btn--sm" type="button" data-sign-out>Выйти</button>
+          </div>
 
           <div class="danger-zone">
-            <h2 class="danger-zone__title">Сбросить всё</h2>
-            <p class="danger-zone__text">План, покупки и настройки исчезнут. Это нельзя отменить.</p>
-            <button class="btn btn--danger btn--block" type="button" data-reset aria-controls="reset-confirm" aria-expanded="false">Сбросить всё</button>
+            <h2 class="danger-zone__title">Сбросить данные на устройстве</h2>
+            <p class="danger-zone__text">Резервная копия на этом устройстве исчезнет, и вы выйдете из аккаунта. Данные в аккаунте останутся.</p>
+            <button class="btn btn--danger btn--block" type="button" data-reset aria-controls="reset-confirm" aria-expanded="false">Сбросить и выйти</button>
 
             <div class="confirm" id="reset-confirm" data-reset-confirm hidden>
-              <p class="confirm__text">Точно сбросить? План и покупки исчезнут.</p>
+              <p class="confirm__text">Точно сбросить данные на этом устройстве и выйти?</p>
               <div class="confirm__actions">
                 <button class="btn btn--ghost" type="button" data-reset-cancel>Отмена</button>
-                <button class="btn btn--danger" type="button" data-reset-go>Сбросить</button>
+                <button class="btn btn--danger" type="button" data-reset-go>Сбросить и выйти</button>
               </div>
             </div>
           </div>
@@ -457,7 +517,7 @@
           <div class="about">
             <section class="about__section">
               <h2 class="about__title">Планировщик домашнего питания</h2>
-              <p>Tarelka собирает план на неделю, помогает выбрать рецепты и превращает план в один список покупок. Всё локально: без аккаунтов и бэкенда.</p>
+              <p>Tarelka собирает план на неделю, помогает выбрать рецепты и превращает план в один список покупок. План и покупки сохраняются в аккаунте, а резервная копия остаётся на устройстве.</p>
             </section>
 
             <section class="about__section">
@@ -467,7 +527,7 @@
 
             <section class="about__section">
               <h2 class="about__title">Данные</h2>
-              <p>План, покупки и настройки хранятся только на этом устройстве. Мы не отправляем их на сервер и не собираем аналитику.</p>
+              <p>План, покупки и настройки хранятся в вашем аккаунте. На этом устройстве остаётся резервная копия для просмотра без сети. Аналитику мы не собираем.</p>
             </section>
 
             <section class="about__section">
@@ -500,7 +560,9 @@
 
   <div class="toast" role="status" aria-live="polite" data-toast></div>
 
+  <script src="js/config.js" defer></script>
   <script src="js/data.js" defer></script>
+  <script src="js/api.js" defer></script>
   <script src="js/app.js" defer></script>
 </body>
 </html>

@@ -18,7 +18,7 @@
  */
 'use strict';
 
-var CACHE_VERSION = 'tarelka-v3';
+var CACHE_VERSION = 'tarelka-v4';
 
 var SHELL = [
   './',
@@ -26,7 +26,9 @@ var SHELL = [
   './manifest.json',
   './styles/tokens.css',
   './styles/main.css',
+  './js/config.js',
   './js/data.js',
+  './js/api.js',
   './js/app.js',
   './assets/icons/favicon.svg',
   './assets/icons/icon-192.png',

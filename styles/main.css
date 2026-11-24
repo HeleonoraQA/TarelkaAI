@@ -157,8 +157,13 @@ button {
 }
 
 body[data-screen="onboarding"] .app__main,
-body[data-screen="recipe"] .app__main {
+body[data-screen="recipe"] .app__main,
+body[data-screen="auth"] .app__main {
   padding-bottom: 0;
+}
+
+body[data-screen="auth"] .tabbar {
+  display: none;
 }
 
 .screen {
@@ -1349,6 +1354,165 @@ body[data-screen="recipe"] .tabbar {
 }
 
 /* =========================================================
+   12.3. Вход, статус и аккаунт
+   ========================================================= */
+
+.screen--auth {
+  min-height: 100dvh;
+}
+
+.auth {
+  width: min(100%, 480px);
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-4) calc(var(--space-6) + var(--safe-area-bottom));
+  display: grid;
+  gap: var(--space-5);
+}
+
+.auth__header {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.auth__title {
+  margin: 0;
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-3xl);
+  line-height: var(--line-height-3xl);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.auth__subtitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+}
+
+.auth__form {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.field__error {
+  margin: var(--space-2) 0 0;
+  color: var(--color-danger-soft-text);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
+}
+
+.field__error[hidden],
+.auth__message[hidden],
+.status-banner[hidden],
+.account-card[hidden],
+.settings__account[hidden] {
+  display: none !important;
+}
+
+.auth__message {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.auth__message.is-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-soft-text);
+}
+
+.auth__footer {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.auth__switch {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.status-banner {
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-warning-soft);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-soft-text);
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.status-banner p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+.status-banner .btn--text {
+  color: inherit;
+  flex: none;
+}
+
+body[data-screen="auth"] .status-banner,
+body[data-screen="onboarding"] .status-banner {
+  display: none;
+}
+
+.settings__account,
+.account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.account-card {
+  margin-top: var(--space-4);
+}
+
+.account-card__label {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.account-card__email {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  word-break: break-word;
+}
+
+.account-card .btn,
+.settings__account .btn {
+  flex: none;
+}
+
+/* =========================================================
    13. Планшет
    ========================================================= */
 
@@ -1395,7 +1559,7 @@ body[data-screen="recipe"] .tabbar {
     padding-bottom: var(--space-6);
   }
 
-  body:not([data-screen="onboarding"]) .app__main {
+  body:not([data-screen="onboarding"]):not([data-screen="auth"]) .app__main {
     padding-left: 96px;
   }
 
@@ -1412,6 +1576,11 @@ body[data-screen="recipe"] .tabbar {
 
   .content--narrow {
     max-width: 760px;
+  }
+
+  .status-banner {
+    max-width: 1080px;
+    margin-inline: auto;
   }
 
   /* На десктопе панель действий не перекрывает контент */
