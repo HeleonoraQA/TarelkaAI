@@ -100,6 +100,8 @@
   var serverShopping = null;
   var session = null;
   var serverReady = false;
+  var sessionInitPromise = null;
+  var profileDirty = false;
   var authMode = 'signin';
   var authBusy = false;
 
@@ -394,6 +396,11 @@
     return !!(api && serverReady && session && api.isOnline());
   }
 
+  // Онбординг — локальное действие: он не должен ждать загрузки серверных данных.
+  function canSaveProfile() {
+    return !!(api && session && api.isOnline());
+  }
+
   function offlineMessage() {
     return 'Нет связи. Показываем сохранённое, изменения доступны после подключения.';
   }
@@ -428,6 +435,8 @@
     // Сессия больше не действует: показываем вход и сохранённое как кэш.
     session = null;
     serverReady = false;
+    sessionInitPromise = null;
+    profileDirty = false;
     serverShopping = null;
     api.clearSession();
     renderAccess();
@@ -437,6 +446,8 @@
   function revokeServerData() {
     session = null;
     serverReady = false;
+    sessionInitPromise = null;
+    profileDirty = false;
     serverShopping = null;
     catalog = null;
     rebuildRecipeIndex();
@@ -457,11 +468,15 @@
       button.disabled = !session;
     });
     Array.prototype.forEach.call(
-      document.querySelectorAll('[data-regenerate], [data-onboarding-done], [data-prefs-form] button[type="submit"], [data-add-form] button[type="submit"]'),
+      document.querySelectorAll('[data-regenerate], [data-prefs-form] button[type="submit"], [data-add-form] button[type="submit"]'),
       function (button) {
         button.disabled = !canWrite();
       }
     );
+    // Кнопки онбординга доступны сразу после входа, не дожидаясь serverReady.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-onboarding-done]'), function (button) {
+      button.disabled = !canSaveProfile();
+    });
 
     var banner = document.querySelector('[data-status-banner]');
     var text = document.querySelector('[data-status-text]');
@@ -649,7 +664,10 @@
   }
 
   function saveProfileOnServer(profile) {
-    if (!canWrite()) return Promise.resolve(false);
+    if (!canSaveProfile()) return Promise.resolve(false);
+
+    // Фоновый ответ сервера может быть старше этой записи — не даём ему откатить профиль.
+    profileDirty = true;
 
     return api.saveProfile(profile, session.user.id).then(function () {
       return true;
@@ -1704,9 +1722,11 @@
     setAuthBusy(false);
     renderAccess();
 
-    initializeSessionData().then(function () {
-      toast('С возвращением');
-    });
+    // Экран открываем сразу по локальному профилю, не дожидаясь сервера.
+    goTo(state.profile.onboarded ? 'home' : 'onboarding');
+    toast('С возвращением');
+
+    initializeSessionData();
   }
 
   function submitAuth(event) {
@@ -1817,7 +1837,7 @@
   }
 
   function applyServerState(profile, plan, shopping) {
-    if (profile) {
+    if (profile && !profileDirty) {
       state.profile.onboarded = profile.onboarded === true;
       state.profile.diet = profile.diet || 'none';
       state.profile.allergies = Array.isArray(profile.allergies) ? profile.allergies : [];
@@ -1898,22 +1918,76 @@
 
   function initializeSessionData() {
     if (!api || !session) return Promise.resolve(false);
+    if (sessionInitPromise) return sessionInitPromise;
 
-    return loadCatalog().then(function () {
+    var initialOnboarded = state.profile.onboarded;
+
+    // Локальный каталог уже есть, поэтому реестр рецептов готов без запроса к серверу.
+    rebuildRecipeIndex();
+    renderPicks();
+    renderPlan();
+    renderShopping();
+
+    function syncScreen() {
+      if (!session || !api.isOnline()) return;
+      // Экран уже показан по локальному профилю: меняем его только при расхождении.
+      if (state.profile.onboarded !== initialOnboarded) {
+        goTo(state.profile.onboarded ? 'home' : 'onboarding');
+      }
+    }
+
+    function applyLoaded(profile, plan, shopping) {
+      if (!session || !api.isOnline()) return false;
+      applyServerState(profile, plan, shopping);
+      serverReady = profile !== null || plan !== null || shopping !== null;
+      renderPlan();
+      renderShopping();
+      syncScreen();
+      return true;
+    }
+
+    // Каталог тяжёлый: обновляем его отдельно в фоне, не блокируя остальные данные.
+    loadCatalog();
+
+    // Независимые чтения идут параллельно; отказ одного не рушит остальные.
+    var pending = Promise.all([
+      api.hasImport(session.user.id).catch(function (error) { handleApiError(error); return null; }),
+      api.getProfile(session.user.id).catch(function (error) { handleApiError(error); return null; }),
+      api.getPlan().catch(function (error) { handleApiError(error); return null; }),
+      api.getShopping().catch(function (error) { handleApiError(error); return null; })
+    ]).then(function (results) {
+      var alreadyImported = results[0];
+      var profile = results[1];
+      var plan = results[2];
+      var shopping = results[3];
+
       if (!session || !api.isOnline()) return false;
 
-      // Отметка импорта защищает серверные данные от повторной загрузки кэша.
-      return api.hasImport(session.user.id).then(function (already) {
-        if (!session) return false;
-        if (already) return loadServerData();
-        return importLocalState(already);
-      });
-    }).then(function () {
-      if (!session) return false;
-      if (!api.isOnline()) return false;
-      goTo(state.profile.onboarded ? 'home' : 'onboarding');
-      return true;
+      // null — проверку отметки выполнить не удалось: импорт пропускаем,
+      // чтобы не затереть уже сохранённые на сервере данные.
+      if (alreadyImported === false) {
+        return importLocalState(false).then(function () {
+          syncScreen();
+          return serverReady;
+        });
+      }
+
+      return applyLoaded(profile, plan, shopping);
+    }).catch(function (error) {
+      handleApiError(error);
+      return false;
     });
+
+    var tracked = pending.then(function (result) {
+      if (sessionInitPromise === tracked) sessionInitPromise = null;
+      return result;
+    }, function (error) {
+      if (sessionInitPromise === tracked) sessionInitPromise = null;
+      throw error;
+    });
+
+    sessionInitPromise = tracked;
+    return tracked;
   }
 
   function startApp() {
@@ -1937,6 +2011,9 @@
       goTo(state.profile.onboarded ? 'home' : 'onboarding');
       return;
     }
+
+    // При восстановлении сессии экран тоже показываем сразу.
+    goTo(state.profile.onboarded ? 'home' : 'onboarding');
 
     initializeSessionData();
   }

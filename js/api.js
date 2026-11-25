@@ -19,6 +19,7 @@
   var AUTH_KEY = 'tarelka:auth';
 
   var refreshPromise = null;
+  var catalogPromise = null;
 
   /* ---------------------------------------------------------
      Ошибки
@@ -349,6 +350,23 @@
   }
 
   function getCatalog() {
+    // Параллельные вызовы делят один запрос, чтобы не гонять тяжёлый каталог дважды.
+    if (catalogPromise) return catalogPromise;
+
+    catalogPromise = fetchCatalog();
+
+    var done = catalogPromise.then(function (value) {
+      catalogPromise = null;
+      return value;
+    }, function (error) {
+      catalogPromise = null;
+      throw error;
+    });
+
+    return done;
+  }
+
+  function fetchCatalog() {
     var select = 'id,title,time,servings,intro,image,' +
       'recipe_steps(step_no,body),' +
       'recipe_ingredients(ingredient_name,amount,unit,position),' +
