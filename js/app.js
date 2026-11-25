@@ -59,6 +59,25 @@
     soy: 'сои'
   };
 
+  var ALLERGEN_LABELS = {
+    gluten: 'глютен',
+    nuts: 'орехи',
+    milk: 'молоко',
+    eggs: 'яйца',
+    fish: 'рыбу',
+    soy: 'сою'
+  };
+
+  // Именительный падеж — для заголовка результата «Глютен → …».
+  var ALLERGEN_TITLES = {
+    gluten: 'Глютен',
+    nuts: 'Орехи',
+    milk: 'Молоко',
+    eggs: 'Яйца',
+    fish: 'Рыба',
+    soy: 'Соя'
+  };
+
   // Экраны «Ещё → …» подсвечивают вкладку «Ещё» в нижней навигации.
   var TAB_BY_SCREEN = {
     prefs: 'more',
@@ -102,6 +121,7 @@
   var serverReady = false;
   var sessionInitPromise = null;
   var profileDirty = false;
+  var aiCache = {};
   var authMode = 'signin';
   var authBusy = false;
 
@@ -886,6 +906,115 @@
     '</div>';
   }
 
+  function aiReplaceMarkup(recipe) {
+    var matched = recipe.allergens.filter(function (allergen) {
+      return state.profile.allergies.indexOf(allergen) !== -1;
+    });
+    if (!matched.length) return '';
+
+    var buttons = matched.map(function (allergen) {
+      return '<button class="btn btn--ghost" type="button" data-replace-allergen="' + esc(allergen) +
+        '" data-recipe-id="' + esc(recipe.id) + '">' +
+        'Предложить замену: ' + esc(ALLERGEN_LABELS[allergen] || allergen) + '</button>';
+    }).join('');
+
+    return '<section class="ai-replace" aria-labelledby="recipe-ai-title">' +
+      '<h3 class="section-title" id="recipe-ai-title">Заменить аллерген</h3>' +
+      '<p class="hint">Подберём продукт без выбранных вами аллергенов. Это подсказка — рецепт не меняется.</p>' +
+      '<div class="ai-replace__actions">' + buttons + '</div>' +
+      '<p class="ai-replace__result" data-ai-result role="status" aria-live="polite" hidden></p>' +
+      '</section>';
+  }
+
+  function aiCacheKey(recipeId, allergen) {
+    return recipeId + '|' + allergen + '|' + state.profile.allergies.join(',');
+  }
+
+  function renderAiResult(text, isError) {
+    var result = document.querySelector('[data-ai-result]');
+    if (!result) return;
+    result.textContent = text;
+    result.hidden = false;
+    result.classList.toggle('is-error', !!isError);
+  }
+
+  function setAiButtonsDisabled(disabled) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-replace-allergen]'), function (button) {
+      button.disabled = disabled;
+    });
+  }
+
+  function requestAllergenReplacement(allergen, recipeId) {
+    var recipe = recipesById[recipeId];
+    if (!recipe || !api || !session || !api.isOnline()) {
+      toast(offlineMessage());
+      return;
+    }
+
+    var cached = aiCache[aiCacheKey(recipeId, allergen)];
+    if (cached) {
+      renderAiResult(cached, false);
+      return;
+    }
+
+    setAiButtonsDisabled(true);
+    renderAiResult('Подбираем замену…', false);
+
+    var config = window.TARELKA_CONFIG || {};
+    var url = String(config.url || '').replace(/\/+$/, '') + '/functions/v1/replace-allergen';
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 20000) : null;
+    var serverError = '';
+
+    api.ensureSession().then(function (sessionData) {
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: config.publishableKey || '',
+          Authorization: 'Bearer ' + sessionData.accessToken
+        },
+        body: JSON.stringify({
+          recipeId: recipe.id,
+          title: recipe.title,
+          ingredients: recipe.ingredients.map(function (item) { return item.name; }),
+          allergen: allergen,
+          allergies: state.profile.allergies
+        }),
+        signal: controller ? controller.signal : undefined
+      });
+    }).then(function (response) {
+      if (!response.ok) {
+        return response.json().then(function (data) {
+          serverError = data && typeof data.error === 'string' ? data.error : '';
+          throw new Error('HTTP ' + response.status);
+        }, function () {
+          throw new Error('HTTP ' + response.status);
+        });
+      }
+      return response.json();
+    }).then(function (data) {
+      if (!data || typeof data.replacement !== 'string' || !data.replacement.trim() ||
+          typeof data.note !== 'string' || !data.note.trim() ||
+          (typeof data.amount !== 'undefined' && typeof data.amount !== 'string')) {
+        throw new Error('FORMAT');
+      }
+      var text = (ALLERGEN_TITLES[allergen] || allergen) + ' → ' + data.replacement.trim() +
+        (data.amount ? ' (' + data.amount + ')' : '') + '. ' + data.note.trim();
+      aiCache[aiCacheKey(recipeId, allergen)] = text;
+      renderAiResult(text, false);
+    }).catch(function (error) {
+      handleApiError(error);
+      var message = error && error.name === 'AbortError'
+        ? 'Не удалось получить замену. Ответ не пришёл вовремя.'
+        : (serverError || 'Не удалось получить замену. Попробуйте ещё раз.');
+      renderAiResult(message, true);
+    }).then(function () {
+      if (timer) clearTimeout(timer);
+      setAiButtonsDisabled(false);
+    });
+  }
+
   function renderRecipe(recipe) {
     if (!recipe) return;
 
@@ -941,6 +1070,8 @@
           '<h3 class="section-title" id="recipe-steps-title">Как готовить</h3>' +
           '<ol class="steps">' + stepsMarkup + '</ol>' +
         '</section>' +
+
+        aiReplaceMarkup(recipe) +
 
         '<p class="disclaimer">Мы исключаем рецепты с выбранными аллергенами, но состав продуктов может меняться. ' +
           'Проверяйте упаковку и состав.</p>' +
@@ -2025,6 +2156,15 @@
   document.addEventListener('click', function (event) {
     var target = event.target;
     if (!(target instanceof Element)) return;
+
+    var replaceButton = target.closest('[data-replace-allergen]');
+    if (replaceButton) {
+      event.preventDefault();
+      if (!replaceButton.disabled) {
+        requestAllergenReplacement(replaceButton.dataset.replaceAllergen, replaceButton.dataset.recipeId);
+      }
+      return;
+    }
 
     if (target.closest('[data-auth-mode]')) {
       event.preventDefault();

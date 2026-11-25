@@ -840,6 +840,39 @@ body[data-screen="recipe"] .tabbar {
   line-height: var(--line-height-sm);
 }
 
+.ai-replace {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+
+.ai-replace .section-title {
+  margin-bottom: 0;
+}
+
+.ai-replace__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ai-replace__result {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success-soft-text);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-md);
+}
+
+.ai-replace__result.is-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-soft-text);
+}
+
 .action-bar {
   position: fixed;
   inset-inline: 0;

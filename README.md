@@ -69,6 +69,7 @@ Tarelka — веб-приложение (PWA) для планирования д
 6. **Фронт подключён к API** — живые данные: каталог, профиль, план и покупки; ошибки, offline read-only и одноразовый импорт `localStorage` в `js/app.js` и `js/api.js`; поведение описано в `docs/architecture.md` §11 и `docs/spec.md` §12.
 7. **CORS и проверка в браузере** — preflight и запросы с `http://127.0.0.1:8080` проходят, каталог возвращает 18 рецептов; проверка зафиксирована в `docs/architecture.md` §11.7 и `docs/prd-prototype.md` §8.5.
 8. **Скрин работающего бизнес-сценария сборки списка покупок** и **скрин результата прогона negative-тестов** в папке `/screenshots`.
+9. **AI-фича «Предложи замену аллергену» через YandexGPT** в карточке блюда: кнопки для каждого совпавшего аллергена из профиля, вызов Edge Function `replace-allergen` с JWT, структурированный ответ модели и результат в формате «Глютен → …» в `js/app.js`, `styles/main.css` и `supabase/functions/replace-allergen/index.ts`. План и список покупок не меняются; при ошибке показывается понятный fallback без белого экрана. Скриншоты: [успешная замена](screenshots/ai-replace-result.png), [JSON ответа модели](screenshots/ai-replace-model-json.png), [лог запроса к YandexGPT](screenshots/ai-replace-edge-log.png), [fallback при ошибке](screenshots/ai-replace-error.png). Успешный ответ и JSON сняты на локальном моке: реальный вызов YandexGPT заблокирован отсутствием платежного аккаунта; лог и fallback — реальные.
 
 ---
 
